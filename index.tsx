@@ -65,6 +65,7 @@ function dataUrlToBase64(dataUrl: string): string {
 function svgDataUrlToPngBase64(svgDataUrl: string, width: number = 512, height: number = 512): Promise<string> {
     return new Promise((resolve, reject) => {
         const img = new Image();
+        img.crossOrigin = 'anonymous'; // FIX: Enable cross-origin loading to prevent tainted canvas
         img.onload = () => {
             const canvas = document.createElement('canvas');
             canvas.width = width;
@@ -312,18 +313,7 @@ async function handleGenerateClick() {
         return;
     }
 
-    let logoBase64: string | null = null;
-    let logoMimeType: string | null = null;
-    
-    if (logoFile) {
-        logoBase64 = await fileToBase64(logoFile);
-        logoMimeType = logoFile.type;
-    } else if (loadedLogo) {
-        logoBase64 = loadedLogo.data;
-        logoMimeType = loadedLogo.type;
-    }
-
-    if (!logoBase64 || !logoMimeType) {
+    if (!logoFile && !loadedLogo) {
         showError('Please upload a logo.');
         return;
     }
@@ -332,6 +322,29 @@ async function handleGenerateClick() {
     showLoading('Warming up the design studio...');
 
     try {
+        let logoBase64: string;
+        let logoMimeType: string;
+
+        if (logoFile) {
+            logoBase64 = await fileToBase64(logoFile);
+            logoMimeType = logoFile.type;
+        } else if (loadedLogo) {
+            logoBase64 = loadedLogo.data;
+            logoMimeType = loadedLogo.type;
+        } else {
+            // This case is already handled above, but as a safeguard.
+            throw new Error("No logo data found.");
+        }
+
+        // FIX: Convert logo to PNG if it's an SVG, as the model doesn't support SVG input.
+        if (logoMimeType.includes('svg')) {
+            showLoading('Preparing logo...');
+            const logoDataUrl = `data:${logoMimeType};base64,${logoBase64}`;
+            logoBase64 = await svgDataUrlToPngBase64(logoDataUrl);
+            logoMimeType = 'image/png'; // The MIME type is now PNG.
+            showLoading('Warming up the design studio...');
+        }
+        
         const parts: ({ text: string } | { inlineData: { data: string, mimeType: string } })[] = [];
         
         const companyName = companyNameInput?.value.trim();
@@ -364,7 +377,6 @@ async function handleGenerateClick() {
         if (selectedBackgroundType === 'color' && selectedBackgroundValue) {
             backgroundInstruction = `Use a solid background color of ${selectedBackgroundValue}.`;
         } else if (selectedBackgroundType === 'image' && selectedBackgroundValue) {
-            // FIX: Convert SVG to PNG as model doesn't support SVG
             showLoading('Preparing background image...');
             const bgPngBase64 = await svgDataUrlToPngBase64(selectedBackgroundValue);
             parts.push({
