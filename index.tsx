@@ -464,6 +464,34 @@ function handleTextEffectSelection(event: Event) {
     }
 }
 
+/**
+ * Parses an error from the AI API and displays a user-friendly message.
+ */
+function parseAndShowError(error: unknown) {
+    console.error("Flyer Generation Error:", error);
+
+    let userMessage = "An unexpected error occurred during generation. Please check the console for details and try again.";
+
+    // Convert the error to a string to check for keywords
+    if (error instanceof Error) {
+        const errorString = error.message.toLowerCase();
+
+        if (errorString.includes('api key')) {
+            userMessage = "Generation failed due to an API key issue. Please ensure the key is valid and configured correctly.";
+        } else if (errorString.includes('permission denied')) {
+             userMessage = "Generation failed due to a permission issue. Please check your API key permissions.";
+        } else if (errorString.includes('blocked')) {
+            userMessage = "Your request was blocked due to safety policies. Please adjust your prompt text and try again.";
+        } else if (errorString.includes('quota')) {
+            userMessage = "You have exceeded your API quota. Please check your account usage and limits.";
+        } else if (errorString.includes('500') || errorString.includes('503') || errorString.includes('service unavailable')) {
+            userMessage = "The AI service is currently unavailable or experiencing issues. Please try again later.";
+        }
+    }
+    
+    showError(userMessage);
+}
+
 async function handleGenerateClick() {
     if (isGenerating) return;
 
@@ -564,335 +592,4 @@ async function handleGenerateClick() {
                 sizeInstruction = 'The flyer dimensions should be in a standard US Letter portrait aspect ratio (8.5:11).';
                 break;
             case 'square-post':
-                sizeInstruction = 'The flyer dimensions should be a perfect square (1:1 aspect ratio), suitable for social media posts.';
-                break;
-            case 'social-banner':
-                sizeInstruction = 'The flyer dimensions should be in a landscape 16:9 aspect ratio, suitable for social media banners.';
-                break;
-            case 'a4-portrait':
-            default:
-                sizeInstruction = 'The flyer dimensions should be in a standard A4 portrait aspect ratio.';
-                break;
-        }
-        
-        let textEffectInstruction = '';
-        if (selectedTextEffects.size > 0) {
-            const effects = Array.from(selectedTextEffects).join(', ');
-            textEffectInstruction = `Apply the following text effects where appropriate for emphasis: ${effects}.`;
-        }
-
-        let logoInstruction = `Integrate the provided logo naturally and seamlessly into the design.`;
-        if (selectedLogoSize) {
-            logoInstruction += ` The logo should be ${selectedLogoSize}-sized relative to the overall flyer design.`;
-        }
-        if (selectedLogoPosition) {
-            const positionText = selectedLogoPosition.replace('-', ' ');
-            logoInstruction += ` Place the logo in the ${positionText} area of the flyer.`;
-        }
-
-        // Add logo (always PNG after cropping)
-        const logoBase64 = logoDataUrl.split(',')[1];
-        parts.push({
-            inlineData: {
-                data: logoBase64,
-                mimeType: 'image/png',
-            },
-        });
-
-        // Add prompt
-        const fullPrompt = `Create a professional flyer designed for high-quality printing. The output must be a very high-resolution image, suitable for a 300 DPI print, ensuring all text is perfectly sharp and all graphics are crisp and clear without any pixelation. Based on this description: "${prompt}". ${companyNameInstruction} ${contactDetailsInstruction} ${paletteInstruction} ${logoInstruction} ${layoutInstruction} ${backgroundInstruction} ${fontInstruction} ${textEffectInstruction} ${sizeInstruction}`;
-        parts.push({ text: fullPrompt });
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
-            contents: { parts: parts },
-            config: {
-                responseModalities: [Modality.IMAGE, Modality.TEXT],
-            },
-        });
-        
-        let foundImage = false;
-        if (response.candidates && response.candidates.length > 0) {
-            for (const part of response.candidates[0].content.parts) {
-                if (part.inlineData) {
-                    const base64ImageBytes = part.inlineData.data;
-                    const mimeType = part.inlineData.mimeType;
-                    const imageUrl = `data:${mimeType};base64,${base64ImageBytes}`;
-                    showResult(imageUrl);
-                    foundImage = true;
-                    break; 
-                }
-            }
-        }
-        
-        if (!foundImage) {
-             showError("The AI couldn't generate a flyer image. Try refining your prompt.");
-        }
-
-    } catch (error) {
-        console.error(error);
-        const errorMessageText = error instanceof Error ? error.message : JSON.stringify(error);
-        showError(`Generation failed: ${errorMessageText}`);
-    } finally {
-        setGenerating(false);
-    }
-}
-
-async function handleDownloadClick(event: MouseEvent) {
-    event.preventDefault();
-
-    // Prevent multiple clicks if download is already in progress
-    if (downloadBtn.classList.contains('disabled')) {
-        return;
-    }
-
-    const format = formatSelect.value;
-    const dataUrl = flyerOutput.src;
-    const fileName = `flyer.${format}`;
-
-    if (!dataUrl || !dataUrl.startsWith('data:image')) {
-        showError("No flyer image to download.");
-        return;
-    }
-    
-    // Set downloading state
-    const originalButtonText = downloadBtn.textContent;
-    downloadBtn.textContent = 'Preparing...';
-    downloadBtn.classList.add('disabled');
-
-    try {
-        let finalDataUrl = dataUrl;
-
-        // If JPG is selected, convert the PNG source to JPG
-        if (format === 'jpg') {
-            finalDataUrl = await new Promise((resolve, reject) => {
-                const img = new Image();
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) {
-                        return reject(new Error('Could not get canvas context'));
-                    }
-                    // Fill background with white. PNGs can have transparency, which becomes black in JPGs.
-                    ctx.fillStyle = '#FFFFFF';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.drawImage(img, 0, 0);
-                    // Get JPG data URL with 90% quality
-                    resolve(canvas.toDataURL('image/jpeg', 0.9));
-                };
-                img.onerror = () => reject(new Error('Failed to load image for conversion.'));
-                img.src = dataUrl;
-            });
-        }
-
-        // Convert the final data URL (either original PNG or new JPG) to a blob
-        const response = await fetch(finalDataUrl);
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-
-        // Create a temporary link to trigger the download
-        const link = document.createElement('a');
-        link.href = objectUrl;
-        link.download = fileName;
-        
-        // This is the key fix: ensure the link is part of the DOM
-        // for the click event to be reliably dispatched in all environments.
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        
-        // Clean up the DOM
-        document.body.removeChild(link);
-        
-        // Delay revoking the object URL to ensure the download has time to start
-        setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
-        
-    } catch (error) {
-        console.error("Download failed:", error);
-        showError("Sorry, the download could not be completed.");
-    } finally {
-        // Reset button state
-        downloadBtn.textContent = originalButtonText;
-        downloadBtn.classList.remove('disabled');
-    }
-}
-
-
-// --- INITIALIZATION ---
-function initialize() {
-    // Assign all DOM elements
-    promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
-    companyNameInput = document.getElementById('company-name-input') as HTMLInputElement;
-    contactDetailsInput = document.getElementById('contact-details-input') as HTMLTextAreaElement;
-    imageUploadArea = document.getElementById('image-upload-area') as HTMLDivElement;
-    logoUpload = document.getElementById('logo-upload') as HTMLInputElement;
-    removeLogoBtn = document.getElementById('remove-logo-btn') as HTMLButtonElement;
-    logoPreview = document.getElementById('logo-preview') as HTMLImageElement;
-    uploadPlaceholder = document.getElementById('upload-placeholder') as HTMLDivElement;
-    logoCustomizationSection = document.getElementById('logo-customization') as HTMLDivElement;
-    logoSizeOptions = document.querySelectorAll('.logo-size-option');
-    logoPositionOptions = document.querySelectorAll('.logo-position-option');
-    paletteOptions = document.querySelectorAll('.palette-option');
-    layoutOptions = document.querySelectorAll('.layout-option');
-    backgroundOptions = document.querySelectorAll('.background-option');
-    fontOptions = document.querySelectorAll('.font-option');
-    sizeOptions = document.querySelectorAll('.size-option');
-    textEffectOptions = document.querySelectorAll('.text-effect-option');
-    generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
-    savePrefsBtn = document.getElementById('save-prefs-btn') as HTMLButtonElement;
-    clearPrefsBtn = document.getElementById('clear-prefs-btn') as HTMLButtonElement;
-    prefsFeedback = document.getElementById('prefs-feedback') as HTMLSpanElement;
-    outputPlaceholder = document.getElementById('output-placeholder') as HTMLDivElement;
-    loader = document.getElementById('loader') as HTMLDivElement;
-    loaderText = document.getElementById('loader-text') as HTMLParagraphElement;
-    resultContainer = document.getElementById('result-container') as HTMLDivElement;
-    flyerOutput = document.getElementById('flyer-output') as HTMLImageElement;
-    downloadControls = document.querySelector('.download-controls') as HTMLDivElement;
-    downloadBtn = document.getElementById('download-btn') as HTMLAnchorElement;
-    formatSelect = document.getElementById('format-select') as HTMLSelectElement;
-    errorMessage = document.getElementById('error-message') as HTMLDivElement;
-    cropModal = document.getElementById('crop-modal') as HTMLDivElement;
-    imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
-    applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
-    cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
-
-
-    // Comprehensive check for critical elements
-    const requiredElements = {
-        promptInput, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
-        generateBtn, downloadBtn, savePrefsBtn, clearPrefsBtn, downloadControls, formatSelect,
-        logoPreview, uploadPlaceholder, prefsFeedback, outputPlaceholder, loader, loaderText,
-        resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,
-        cropModal, imageToCrop, applyCropBtn, cancelCropBtn
-    };
-
-    for (const [name, el] of Object.entries(requiredElements)) {
-        if (!el) {
-            console.error(`Initialization failed: Element "${name}" is missing from the DOM.`);
-            document.body.innerHTML = `<p style="color: red; font-family: sans-serif; padding: 2rem;">Error: Application could not start. A required UI element (${name}) is missing.</p>`;
-            return;
-        }
-    }
-    
-    // Now that we know generateBtn exists, we can safely query its inner elements.
-    generateBtnSpan = generateBtn.querySelector('span') as HTMLSpanElement;
-    if (!generateBtnSpan) {
-        console.error("Initialization failed: The 'generate-btn' is missing its inner span element.");
-        // We can let the app continue, but the button text won't update.
-    }
-
-    // Attach all event listeners
-    imageUploadArea.addEventListener('click', (e) => {
-        // Prevent click on logoUpload when remove button is clicked
-        if (e.target !== removeLogoBtn) {
-            logoUpload.click();
-        }
-    });
-    logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
-    removeLogoBtn.addEventListener('click', handleRemoveLogo);
-
-    imageUploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        imageUploadArea.classList.add('drag-over');
-    });
-    imageUploadArea.addEventListener('dragleave', () => {
-        imageUploadArea.classList.remove('drag-over');
-    });
-    imageUploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        imageUploadArea.classList.remove('drag-over');
-        handleLogoSelection(e.dataTransfer?.files ?? null);
-    });
-
-    applyCropBtn.addEventListener('click', handleApplyCrop);
-    cancelCropBtn.addEventListener('click', handleCancelCrop);
-    
-    logoSizeOptions.forEach(option => {
-        option.addEventListener('click', handleLogoSizeSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleLogoSizeSelection(e);
-            }
-        });
-    });
-
-    logoPositionOptions.forEach(option => {
-        option.addEventListener('click', handleLogoPositionSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleLogoPositionSelection(e);
-            }
-        });
-    });
-
-    paletteOptions.forEach(option => {
-        option.addEventListener('click', handlePaletteSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handlePaletteSelection(e);
-            }
-        });
-    });
-
-    layoutOptions.forEach(option => {
-        option.addEventListener('click', handleLayoutSelection);
-    });
-    
-    backgroundOptions.forEach(option => {
-        option.addEventListener('click', handleBackgroundSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleBackgroundSelection(e);
-            }
-        });
-    });
-
-    fontOptions.forEach(option => {
-        option.addEventListener('click', handleFontSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleFontSelection(e);
-            }
-        });
-    });
-
-    sizeOptions.forEach(option => {
-        option.addEventListener('click', handleSizeSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleSizeSelection(e);
-            }
-        });
-    });
-
-    textEffectOptions.forEach(option => {
-        option.addEventListener('click', handleTextEffectSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleTextEffectSelection(e);
-            }
-        });
-    });
-
-
-    generateBtn.addEventListener('click', handleGenerateClick);
-    downloadBtn.addEventListener('click', handleDownloadClick);
-    savePrefsBtn.addEventListener('click', handleSavePrefs);
-    clearPrefsBtn.addEventListener('click', handleClearPrefs);
-    
-    handleLoadPrefs();
-}
-
-// Run initialization
-initialize();
-
-export {};
+                sizeInstruction = 'The flyer dimensions should be a perfect square (1:1 aspect
