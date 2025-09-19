@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Flyer Generator</title>
     <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
     <script type="importmap">
     {
       "imports": {
@@ -12,6 +13,7 @@
       }
     }
     </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.js"></script>
     <script type="module" src="index.tsx"></script>
 </head>
 <body>
@@ -43,12 +45,35 @@
 
                 <h2>4. Upload Your Logo</h2>
                 <div id="image-upload-area" role="button" aria-label="Upload your logo" tabindex="0">
+                    <button id="remove-logo-btn" class="hidden" aria-label="Remove logo">&times;</button>
                     <input type="file" id="logo-upload" accept="image/*" class="hidden">
                     <img id="logo-preview" class="hidden" alt="Uploaded logo preview">
                     <div id="upload-placeholder">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                         <p>Click to upload or drag & drop</p>
                         <span>SVG, PNG, JPG</span>
+                    </div>
+                </div>
+
+                <div id="logo-customization" class="hidden">
+                    <h3 class="customization-subheader">Logo Size</h3>
+                    <div class="logo-size-options-container" role="radiogroup">
+                        <div class="logo-size-option" data-size="small" role="radio" aria-checked="false" tabindex="0"><span>Small</span></div>
+                        <div class="logo-size-option selected" data-size="medium" role="radio" aria-checked="true" tabindex="0"><span>Medium</span></div>
+                        <div class="logo-size-option" data-size="large" role="radio" aria-checked="false" tabindex="0"><span>Large</span></div>
+                    </div>
+                    
+                    <h3 class="customization-subheader">Logo Position</h3>
+                    <div class="logo-position-options-container" role="radiogroup">
+                        <div class="logo-position-option" data-position="top-left" role="radio" aria-checked="false" tabindex="0" aria-label="Top Left"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option" data-position="top-center" role="radio" aria-checked="false" tabindex="0" aria-label="Top Center"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option selected" data-position="top-right" role="radio" aria-checked="true" tabindex="0" aria-label="Top Right"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option" data-position="middle-left" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Left"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option" data-position="middle-center" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Center"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option" data-position="middle-right" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Right"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option" data-position="bottom-left" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Left"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option" data-position="bottom-center" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Center"><div class="position-indicator"></div></div>
+                        <div class="logo-position-option" data-position="bottom-right" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Right"><div class="position-indicator"></div></div>
                     </div>
                 </div>
                 
@@ -117,7 +142,7 @@
                         <span>Text Focus</span>
                     </div>
                     <div class="layout-option selected" data-layout="balanced" role="radio" aria-checked="true" tabindex="0">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="5" rx="1"/><line x1="7" y1="16" x2="17" y2="16"/><line x1="7" y1="14" x2="17" y2="14"/></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="5" rx="1"/><line x1="7" y1="16" x2="17" y2="16"/><line x1="7" y1="4" x2="17" y2="14"/></svg>
                         <span>Balanced</span>
                     </div>
                     <div class="layout-option" data-layout="image-focus" role="radio" aria-checked="false" tabindex="0">
@@ -235,6 +260,20 @@
                 <div id="error-message" class="hidden"></div>
             </section>
         </main>
+    </div>
+
+    <!-- Cropping Modal -->
+    <div id="crop-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h2>Edit Logo</h2>
+            <div class="crop-container">
+                <img id="image-to-crop" alt="Image cropper">
+            </div>
+            <div class="modal-actions">
+                <button id="cancel-crop-btn" class="btn btn-secondary">Cancel</button>
+                <button id="apply-crop-btn" class="btn">Apply</button>
+            </div>
+        </div>
     </div>
 </body>
 </html>

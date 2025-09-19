@@ -1,13 +1,20 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 
+// Since cropperjs is loaded from a CDN, we declare its type here to satisfy TypeScript
+declare var Cropper: any;
+
 // --- DOM ELEMENT VARIABLES (to be assigned in initialize) ---
 let promptInput: HTMLTextAreaElement;
 let companyNameInput: HTMLInputElement;
 let contactDetailsInput: HTMLTextAreaElement;
 let imageUploadArea: HTMLDivElement;
 let logoUpload: HTMLInputElement;
+let removeLogoBtn: HTMLButtonElement;
 let logoPreview: HTMLImageElement;
 let uploadPlaceholder: HTMLDivElement;
+let logoCustomizationSection: HTMLDivElement;
+let logoSizeOptions: NodeListOf<HTMLDivElement>;
+let logoPositionOptions: NodeListOf<HTMLDivElement>;
 let paletteOptions: NodeListOf<HTMLDivElement>;
 let layoutOptions: NodeListOf<HTMLDivElement>;
 let backgroundOptions: NodeListOf<HTMLElement>;
@@ -28,10 +35,16 @@ let downloadControls: HTMLDivElement;
 let downloadBtn: HTMLAnchorElement;
 let formatSelect: HTMLSelectElement;
 let errorMessage: HTMLDivElement;
+// Cropping modal elements
+let cropModal: HTMLDivElement;
+let imageToCrop: HTMLImageElement;
+let applyCropBtn: HTMLButtonElement;
+let cancelCropBtn: HTMLButtonElement;
+
 
 // --- STATE ---
-let logoFile: File | null = null;
-let loadedLogo: { data: string, type: string } | null = null;
+let logoDataUrl: string | null = null;
+let cropper: any | null = null; // Cropper instance
 let isGenerating = false;
 let selectedPalette = 'default';
 let selectedLayout = 'balanced';
@@ -40,6 +53,8 @@ let selectedBackgroundValue: string | null = null;
 let selectedFont = 'sans-serif';
 let selectedSize = 'a4-portrait';
 let selectedTextEffects = new Set<string>();
+let selectedLogoSize = 'medium';
+let selectedLogoPosition = 'top-right';
 
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
 
@@ -48,28 +63,15 @@ const PREFERENCES_KEY = 'flyerGeneratorPrefs';
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // --- HELPER FUNCTIONS ---
-function fileToBase64(file: File): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        // Return only the base64 part
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = error => reject(error);
-        reader.readAsDataURL(file);
-    });
-}
-
-function dataUrlToBase64(dataUrl: string): string {
-    return dataUrl.split(',')[1];
-}
 
 /**
  * Converts an SVG data URL to a PNG base64 string.
- * This is necessary because the model does not support SVG as an input format.
+ * This is necessary because the model does not support SVG as an input format for backgrounds.
  */
 function svgDataUrlToPngBase64(svgDataUrl: string, width: number = 512, height: number = 512): Promise<string> {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.crossOrigin = 'anonymous'; // FIX: Enable cross-origin loading to prevent tainted canvas
+        img.crossOrigin = 'anonymous'; // Enable cross-origin loading to prevent tainted canvas
         img.onload = () => {
             const canvas = document.createElement('canvas');
             canvas.width = width;
@@ -133,22 +135,6 @@ function showError(message: string) {
     }
 }
 
-function updateLogoPreview(file: File) {
-    logoFile = file;
-    loadedLogo = null; // Clear loaded logo if a new file is uploaded
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        if (e.target?.result) {
-            if (logoPreview) {
-                logoPreview.src = e.target.result as string;
-                logoPreview.classList.remove('hidden');
-            }
-            if (uploadPlaceholder) uploadPlaceholder.classList.add('hidden');
-        }
-    };
-    reader.readAsDataURL(file);
-}
-
 // --- PREFERENCES FUNCTIONS ---
 
 async function handleSavePrefs() {
@@ -161,19 +147,10 @@ async function handleSavePrefs() {
         bgValue: selectedBackgroundValue,
         size: selectedSize,
         textEffects: Array.from(selectedTextEffects),
+        logoSize: selectedLogoSize,
+        logoPosition: selectedLogoPosition,
+        logoDataUrl: logoDataUrl,
     };
-
-    const currentLogoSource = logoFile || loadedLogo;
-
-    if (currentLogoSource) {
-        if (logoFile) {
-            prefs.logoData = await fileToBase64(logoFile);
-            prefs.logoType = logoFile.type;
-        } else if (loadedLogo) {
-            prefs.logoData = loadedLogo.data;
-            prefs.logoType = loadedLogo.type;
-        }
-    }
     
     localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
     showPrefsFeedback('Saved!');
@@ -241,14 +218,34 @@ function handleLoadPrefs() {
         });
     }
 
+    // Load Logo Size
+    if (prefs.logoSize) {
+        selectedLogoSize = prefs.logoSize;
+        logoSizeOptions.forEach(option => {
+            const isSelected = option.getAttribute('data-size') === selectedLogoSize;
+            option.classList.toggle('selected', isSelected);
+            option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+        });
+    }
+
+    // Load Logo Position
+    if (prefs.logoPosition) {
+        selectedLogoPosition = prefs.logoPosition;
+        logoPositionOptions.forEach(option => {
+            const isSelected = option.getAttribute('data-position') === selectedLogoPosition;
+            option.classList.toggle('selected', isSelected);
+            option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+        });
+    }
+
     // Load Logo
-    if (prefs.logoData && prefs.logoType) {
-        loadedLogo = { data: prefs.logoData, type: prefs.logoType };
-        logoFile = null;
-        const logoDataUrl = `data:${loadedLogo.type};base64,${loadedLogo.data}`;
+    if (prefs.logoDataUrl) {
+        logoDataUrl = prefs.logoDataUrl;
         logoPreview.src = logoDataUrl;
         logoPreview.classList.remove('hidden');
         uploadPlaceholder.classList.add('hidden');
+        removeLogoBtn.classList.remove('hidden');
+        logoCustomizationSection.classList.remove('hidden');
     }
 }
 
@@ -258,11 +255,9 @@ function handleClearPrefs() {
     // Optional: reset form to default state
     companyNameInput.value = '';
     contactDetailsInput.value = '';
-    logoFile = null;
-    loadedLogo = null;
-    logoPreview.classList.add('hidden');
-    logoPreview.src = '';
-    uploadPlaceholder.classList.remove('hidden');
+    
+    // Reset logo
+    handleRemoveLogo();
     
     selectedTextEffects.clear();
     textEffectOptions.forEach(option => {
@@ -277,18 +272,114 @@ function handleClearPrefs() {
         option.classList.toggle('selected', isSelected);
         option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
     });
+
+    // Reset logo size
+    selectedLogoSize = 'medium';
+    logoSizeOptions.forEach(option => {
+        const isSelected = option.getAttribute('data-size') === 'medium';
+        option.classList.toggle('selected', isSelected);
+        option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+    });
+
+    // Reset logo position
+    selectedLogoPosition = 'top-right';
+    logoPositionOptions.forEach(option => {
+        const isSelected = option.getAttribute('data-position') === 'top-right';
+        option.classList.toggle('selected', isSelected);
+        option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+    });
 }
 
 // --- EVENT HANDLERS ---
 function handleLogoSelection(files: FileList | null) {
     if (files && files.length > 0) {
         const file = files[0];
-        if (file.type.startsWith('image/')) {
-            updateLogoPreview(file);
-        } else {
+        if (!file.type.startsWith('image/')) {
             alert('Please select an image file.');
+            return;
         }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            imageToCrop.src = e.target?.result as string;
+            cropModal.classList.remove('hidden');
+            
+            if (cropper) {
+                cropper.destroy();
+            }
+            cropper = new Cropper(imageToCrop, {
+                aspectRatio: NaN, // Free aspect ratio
+                viewMode: 1,
+                background: false,
+                responsive: true,
+                autoCropArea: 0.8,
+            });
+        };
+        reader.readAsDataURL(file);
+        logoUpload.value = ''; // Allows re-uploading the same file
     }
+}
+
+function handleApplyCrop() {
+    if (!cropper) return;
+    const canvas = cropper.getCroppedCanvas();
+    if (!canvas) {
+        showError("Could not process the cropped image.");
+        return;
+    }
+    logoDataUrl = canvas.toDataURL('image/png');
+
+    logoPreview.src = logoDataUrl;
+    logoPreview.classList.remove('hidden');
+    uploadPlaceholder.classList.add('hidden');
+    removeLogoBtn.classList.remove('hidden');
+    logoCustomizationSection.classList.remove('hidden');
+
+    handleCancelCrop(); // Hide modal and destroy cropper instance
+}
+
+function handleCancelCrop() {
+    cropModal.classList.add('hidden');
+    if (cropper) {
+        cropper.destroy();
+        cropper = null;
+    }
+}
+
+function handleRemoveLogo() {
+    logoDataUrl = null;
+    if (logoPreview) {
+        logoPreview.src = '';
+        logoPreview.classList.add('hidden');
+    }
+    if (uploadPlaceholder) uploadPlaceholder.classList.remove('hidden');
+    if (removeLogoBtn) removeLogoBtn.classList.add('hidden');
+    if (logoCustomizationSection) logoCustomizationSection.classList.add('hidden');
+    if (logoUpload) logoUpload.value = '';
+}
+
+function handleLogoSizeSelection(event: Event) {
+    const target = event.currentTarget as HTMLDivElement;
+    selectedLogoSize = target.dataset.size || 'medium';
+
+    logoSizeOptions.forEach(option => {
+        option.classList.remove('selected');
+        option.setAttribute('aria-checked', 'false');
+    });
+    target.classList.add('selected');
+    target.setAttribute('aria-checked', 'true');
+}
+
+function handleLogoPositionSelection(event: Event) {
+    const target = event.currentTarget as HTMLDivElement;
+    selectedLogoPosition = target.dataset.position || 'top-right';
+
+    logoPositionOptions.forEach(option => {
+        option.classList.remove('selected');
+        option.setAttribute('aria-checked', 'false');
+    });
+    target.classList.add('selected');
+    target.setAttribute('aria-checked', 'true');
 }
 
 function handlePaletteSelection(event: Event) {
@@ -382,8 +473,8 @@ async function handleGenerateClick() {
         return;
     }
 
-    if (!logoFile && !loadedLogo) {
-        showError('Please upload a logo.');
+    if (!logoDataUrl) {
+        showError('Please upload and apply a logo.');
         return;
     }
 
@@ -391,29 +482,6 @@ async function handleGenerateClick() {
     showLoading('Warming up the design studio...');
 
     try {
-        let logoBase64: string;
-        let logoMimeType: string;
-
-        if (logoFile) {
-            logoBase64 = await fileToBase64(logoFile);
-            logoMimeType = logoFile.type;
-        } else if (loadedLogo) {
-            logoBase64 = loadedLogo.data;
-            logoMimeType = loadedLogo.type;
-        } else {
-            // This case is already handled above, but as a safeguard.
-            throw new Error("No logo data found.");
-        }
-
-        // FIX: Convert logo to PNG if it's an SVG, as the model doesn't support SVG input.
-        if (logoMimeType.includes('svg')) {
-            showLoading('Preparing logo...');
-            const logoDataUrl = `data:${logoMimeType};base64,${logoBase64}`;
-            logoBase64 = await svgDataUrlToPngBase64(logoDataUrl);
-            logoMimeType = 'image/png'; // The MIME type is now PNG.
-            showLoading('Warming up the design studio...');
-        }
-        
         const parts: ({ text: string } | { inlineData: { data: string, mimeType: string } })[] = [];
         
         const companyName = companyNameInput?.value.trim();
@@ -513,16 +581,26 @@ async function handleGenerateClick() {
             textEffectInstruction = `Apply the following text effects where appropriate for emphasis: ${effects}.`;
         }
 
-        // Add logo
+        let logoInstruction = `Integrate the provided logo naturally and seamlessly into the design.`;
+        if (selectedLogoSize) {
+            logoInstruction += ` The logo should be ${selectedLogoSize}-sized relative to the overall flyer design.`;
+        }
+        if (selectedLogoPosition) {
+            const positionText = selectedLogoPosition.replace('-', ' ');
+            logoInstruction += ` Place the logo in the ${positionText} area of the flyer.`;
+        }
+
+        // Add logo (always PNG after cropping)
+        const logoBase64 = logoDataUrl.split(',')[1];
         parts.push({
             inlineData: {
                 data: logoBase64,
-                mimeType: logoMimeType,
+                mimeType: 'image/png',
             },
         });
 
         // Add prompt
-        const fullPrompt = `Create a professional flyer designed for high-quality printing. The output must be a very high-resolution image, suitable for a 300 DPI print, ensuring all text is perfectly sharp and all graphics are crisp and clear without any pixelation. Based on this description: "${prompt}". ${companyNameInstruction} ${contactDetailsInstruction} ${paletteInstruction} Integrate the provided logo naturally and seamlessly into the design. ${layoutInstruction} ${backgroundInstruction} ${fontInstruction} ${textEffectInstruction} ${sizeInstruction}`;
+        const fullPrompt = `Create a professional flyer designed for high-quality printing. The output must be a very high-resolution image, suitable for a 300 DPI print, ensuring all text is perfectly sharp and all graphics are crisp and clear without any pixelation. Based on this description: "${prompt}". ${companyNameInstruction} ${contactDetailsInstruction} ${paletteInstruction} ${logoInstruction} ${layoutInstruction} ${backgroundInstruction} ${fontInstruction} ${textEffectInstruction} ${sizeInstruction}`;
         parts.push({ text: fullPrompt });
 
         const response = await ai.models.generateContent({
@@ -650,8 +728,12 @@ function initialize() {
     contactDetailsInput = document.getElementById('contact-details-input') as HTMLTextAreaElement;
     imageUploadArea = document.getElementById('image-upload-area') as HTMLDivElement;
     logoUpload = document.getElementById('logo-upload') as HTMLInputElement;
+    removeLogoBtn = document.getElementById('remove-logo-btn') as HTMLButtonElement;
     logoPreview = document.getElementById('logo-preview') as HTMLImageElement;
     uploadPlaceholder = document.getElementById('upload-placeholder') as HTMLDivElement;
+    logoCustomizationSection = document.getElementById('logo-customization') as HTMLDivElement;
+    logoSizeOptions = document.querySelectorAll('.logo-size-option');
+    logoPositionOptions = document.querySelectorAll('.logo-position-option');
     paletteOptions = document.querySelectorAll('.palette-option');
     layoutOptions = document.querySelectorAll('.layout-option');
     backgroundOptions = document.querySelectorAll('.background-option');
@@ -671,13 +753,19 @@ function initialize() {
     downloadBtn = document.getElementById('download-btn') as HTMLAnchorElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
+    cropModal = document.getElementById('crop-modal') as HTMLDivElement;
+    imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
+    applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
+    cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
+
 
     // Comprehensive check for critical elements
     const requiredElements = {
         promptInput, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
         generateBtn, downloadBtn, savePrefsBtn, clearPrefsBtn, downloadControls, formatSelect,
         logoPreview, uploadPlaceholder, prefsFeedback, outputPlaceholder, loader, loaderText,
-        resultContainer, flyerOutput, errorMessage
+        resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,
+        cropModal, imageToCrop, applyCropBtn, cancelCropBtn
     };
 
     for (const [name, el] of Object.entries(requiredElements)) {
@@ -696,8 +784,14 @@ function initialize() {
     }
 
     // Attach all event listeners
-    imageUploadArea.addEventListener('click', () => logoUpload.click());
+    imageUploadArea.addEventListener('click', (e) => {
+        // Prevent click on logoUpload when remove button is clicked
+        if (e.target !== removeLogoBtn) {
+            logoUpload.click();
+        }
+    });
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
+    removeLogoBtn.addEventListener('click', handleRemoveLogo);
 
     imageUploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -711,7 +805,30 @@ function initialize() {
         imageUploadArea.classList.remove('drag-over');
         handleLogoSelection(e.dataTransfer?.files ?? null);
     });
+
+    applyCropBtn.addEventListener('click', handleApplyCrop);
+    cancelCropBtn.addEventListener('click', handleCancelCrop);
     
+    logoSizeOptions.forEach(option => {
+        option.addEventListener('click', handleLogoSizeSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleLogoSizeSelection(e);
+            }
+        });
+    });
+
+    logoPositionOptions.forEach(option => {
+        option.addEventListener('click', handleLogoPositionSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleLogoPositionSelection(e);
+            }
+        });
+    });
+
     paletteOptions.forEach(option => {
         option.addEventListener('click', handlePaletteSelection);
         option.addEventListener('keydown', (e) => {
