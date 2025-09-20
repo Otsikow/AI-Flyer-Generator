@@ -626,17 +626,127 @@ textarea[id="contact-details-input"]:focus {
   100% { transform: rotate(360deg); }
 }
 
+/* --- Responsive Design --- */
+
 @media (max-width: 992px) {
-  .generator-container { grid-template-columns: 1fr; gap: 1.5rem; }
+  .generator-container { 
+    grid-template-columns: 1fr; 
+    gap: 1.5rem; 
+  }
+  .output-panel {
+    /* Ensure output panel doesn't take up excessive vertical space on tablet */
+    min-height: 550px;
+    position: sticky; /* Let it stick while scrolling through the long input panel */
+    top: 1.5rem;
+  }
 }
+
 @media (max-width: 768px) {
-  #app { padding: 1rem; }
-  .app-header { flex-direction: column; gap: 1rem; }
-  .theme-switcher { position: static; transform: none; }
-  .header-content h1 { font-size: 2rem; }
-  .header-content p { font-size: 1rem; }
-  .preferences-bar { flex-direction: column; align-items: flex-start; gap: 0.75rem; }
-  .pref-buttons { margin-right: 0; }
-  .layout-options-container, .font-options-container, .text-effects-container { gap: 0.75rem; }
-  .text-effects-container { grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); }
+  #app { padding: 1.5rem 1rem; }
+
+  .app-header { 
+    flex-direction: row; /* Keep logo and title on one line */
+    justify-content: flex-start; /* Align to the left */
+    text-align: left;
+    margin-bottom: 2rem;
+  }
+  #app-logo {
+    width: 40px;
+    height: 40px;
+  }
+  .theme-switcher { 
+    /* Keep it in the top right corner */
+    position: absolute;
+    top: 1.5rem;
+    right: 1rem;
+    transform: none; 
+  }
+  .header-content h1 { font-size: 1.8rem; margin-bottom: 0.1rem; }
+  .header-content p { font-size: 0.9rem; }
+
+  .input-panel, .output-panel {
+    padding: 1rem;
+  }
+  .output-panel {
+    min-height: auto;
+    position: static; /* Unstick for mobile layout */
+    padding-bottom: 2rem;
+  }
+
+  .preferences-bar {
+    padding: 0.75rem 1rem;
+    margin: -1rem -1rem 1rem -1rem;
+  }
+
+  .logo-size-options-container,
+  .size-options-container {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .layout-options-container, .font-options-container, .text-effects-container { 
+    gap: 0.75rem; 
+  }
+  
+  .text-effects-container { 
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr)); 
+  }
+
+  /* Modal responsiveness */
+  .modal-content {
+    padding: 1.5rem;
+    width: 90vw;
+  }
+  .crop-container {
+    max-width: 100%;
+    max-height: 65vh;
+  }
+  .modal-actions {
+    flex-direction: column-reverse;
+    width: 100%;
+    gap: 0.75rem;
+  }
+  .modal-actions .btn {
+    width: 100%;
+    margin: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  #app {
+    padding: 1rem 0.75rem;
+  }
+  .app-header {
+    gap: 0.75rem;
+  }
+  .theme-switcher {
+    top: 1rem;
+    right: 0.75rem;
+  }
+  .header-content h1 {
+    font-size: 1.5rem;
+  }
+  .header-content p {
+    display: none; /* Hide subtitle on very small screens to save space */
+  }
+
+  .preferences-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .btn {
+    padding: 0.7rem 1.2rem;
+    font-size: 0.95rem;
+  }
+  .download-controls {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .modal-content {
+    padding: 1rem;
+    width: 95vw;
+  }
 }
