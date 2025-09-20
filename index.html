@@ -70,7 +70,7 @@
                             <input type="file" id="logo-upload" accept="image/*" class="hidden">
                             <img id="logo-preview" class="hidden" alt="Uploaded logo preview">
                             <div id="upload-placeholder">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                                 <p>Click to upload or drag & drop</p>
                                 <span>SVG, PNG, JPG</span>
                             </div>
@@ -276,7 +276,7 @@
                             <div id="studio-image-upload-area" role="button" aria-label="Upload your image" tabindex="0">
                                 <input type="file" id="studio-logo-upload" accept="image/*" class="hidden">
                                 <div id="studio-upload-placeholder">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                                     <p>Click to upload or drag & drop</p>
                                     <span>JPG, PNG, WEBP</span>
                                 </div>
@@ -302,8 +302,48 @@
                                 </div>
 
                                 <h2>Text Overlay</h2>
-                                <div class="input-container">
+                                <div class="text-controls-container">
                                     <textarea id="text-overlay-input" rows="2" placeholder="Add text to your image..."></textarea>
+                                    <div id="text-style-panel" class="hidden">
+                                        <h3 class="customization-subheader">Text Styles</h3>
+                                        <div class="control-grid">
+                                            <div class="control-item">
+                                                <label for="font-family-select">Font Family</label>
+                                                <select id="font-family-select" class="format-select">
+                                                    <option value="Arial, sans-serif">Arial</option>
+                                                    <option value="Verdana, sans-serif">Verdana</option>
+                                                    <option value="Georgia, serif">Georgia</option>
+                                                    <option value="'Times New Roman', serif">Times New Roman</option>
+                                                    <option value="'Courier New', monospace">Courier New</option>
+                                                    <option value="Impact, sans-serif">Impact</option>
+                                                    <option value="cursive">Cursive</option>
+                                                    <option value="fantasy">Fantasy</option>
+                                                </select>
+                                            </div>
+                                            <div class="control-item">
+                                                <label for="font-size-slider">Font Size</label>
+                                                <input type="range" id="font-size-slider" min="8" max="256" value="48">
+                                            </div>
+                                        </div>
+                                        <div class="style-toggles">
+                                            <label for="font-color-picker" class="hidden">Font Color</label>
+                                            <input type="color" id="font-color-picker" value="#FFFFFF" title="Font Color">
+                                            <button id="font-bold-btn" class="style-toggle" aria-pressed="false" title="Bold">B</button>
+                                            <button id="font-italic-btn" class="style-toggle" aria-pressed="false" title="Italic">I</button>
+                                        </div>
+                                        <h3 class="customization-subheader customization-subheader--spaced">Position</h3>
+                                        <div id="text-position-grid" class="logo-position-options-container" role="radiogroup">
+                                            <div class="logo-position-option" data-position="top-left" role="radio" aria-checked="false" tabindex="0" aria-label="Top Left"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option" data-position="top-center" role="radio" aria-checked="false" tabindex="0" aria-label="Top Center"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option" data-position="top-right" role="radio" aria-checked="false" tabindex="0" aria-label="Top Right"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option" data-position="middle-left" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Left"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option selected" data-position="middle-center" role="radio" aria-checked="true" tabindex="0" aria-label="Middle Center"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option" data-position="middle-right" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Right"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option" data-position="bottom-left" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Left"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option" data-position="bottom-center" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Center"><div class="position-indicator"></div></div>
+                                            <div class="logo-position-option" data-position="bottom-right" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Right"><div class="position-indicator"></div></div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -325,6 +365,29 @@
                                 <div class="style-chip" data-style="Flat Illustration" role="checkbox" aria-checked="false" tabindex="0">Flat Illustration</div>
                                 <div class="style-chip" data-style="Cinematic" role="checkbox" aria-checked="false" tabindex="0">Cinematic</div>
                                 <div class="style-chip" data-style="Portrait" role="checkbox" aria-checked="false" tabindex="0">Portrait</div>
+                            </div>
+                            
+                            <h2>Image Size</h2>
+                            <div class="style-chips-container" id="size-preset-chips">
+                                <button class="style-chip size-preset-chip selected" data-width="1024" data-height="1024">Square (1:1)</button>
+                                <button class="style-chip size-preset-chip" data-width="1344" data-height="768">Banner (16:9)</button>
+                                <button class="style-chip size-preset-chip" data-width="1024" data-height="1280">Poster (4:5)</button>
+                            </div>
+                            <div class="custom-size-container">
+                                <div class="custom-dimensions-inputs">
+                                    <label>Width (px) <input type="number" id="custom-width-input" min="256" max="2048" value="1024"></label>
+                                    <label>Height (px) <input type="number" id="custom-height-input" min="256" max="2048" value="1024"></label>
+                                </div>
+                                <div id="size-preview-box-container">
+                                    <div id="size-preview-box"></div>
+                                </div>
+                            </div>
+                            <div class="aspect-ratio-lock">
+                                <label for="aspect-ratio-lock-toggle">
+                                    <input type="checkbox" id="aspect-ratio-lock-toggle" checked>
+                                    <span class="toggle-switch"></span>
+                                    Lock Aspect Ratio
+                                </label>
                             </div>
 
                             <button id="generate-image-btn" class="btn">
@@ -349,7 +412,7 @@
                          <div id="studio-result-container" class="hidden">
                             <div class="canvas-container">
                                 <img id="studio-image-output" alt="Studio image output">
-                                <div id="text-overlay-display"></div>
+                                <canvas id="studio-text-canvas"></canvas>
                             </div>
                              <div class="studio-download-controls hidden">
                                 <select id="studio-format-select" class="format-select">

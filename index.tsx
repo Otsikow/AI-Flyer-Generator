@@ -65,16 +65,30 @@ let contrastSlider: HTMLInputElement;
 let saturateSlider: HTMLInputElement;
 let blurSlider: HTMLInputElement;
 let textOverlayInput: HTMLTextAreaElement;
+let textStylePanel: HTMLDivElement;
+let fontFamilySelect: HTMLSelectElement;
+let fontSizeSlider: HTMLInputElement;
+let fontColorPicker: HTMLInputElement;
+let fontBoldBtn: HTMLButtonElement;
+let fontItalicBtn: HTMLButtonElement;
+let textPositionGrid: NodeListOf<HTMLDivElement>;
 let imagePromptInput: HTMLTextAreaElement;
 let enhanceImagePromptBtn: HTMLButtonElement;
 let styleChips: NodeListOf<HTMLDivElement>;
+// -- NEW Image Size Selector elements --
+let sizePresetChips: NodeListOf<HTMLButtonElement>;
+let customWidthInput: HTMLInputElement;
+let customHeightInput: HTMLInputElement;
+let aspectRatioLockToggle: HTMLInputElement;
+let sizePreviewBox: HTMLDivElement;
+// -- End New Elements --
 let generateImageBtn: HTMLButtonElement;
 let studioOutputPlaceholder: HTMLDivElement;
 let studioLoader: HTMLDivElement;
 let studioLoaderText: HTMLParagraphElement;
 let studioResultContainer: HTMLDivElement;
 let studioImageOutput: HTMLImageElement;
-let textOverlayDisplay: HTMLDivElement;
+let studioTextCanvas: HTMLCanvasElement;
 let studioDownloadControls: HTMLDivElement;
 let studioFormatSelect: HTMLSelectElement;
 let studioDownloadBtn: HTMLAnchorElement;
@@ -106,13 +120,27 @@ let studioImageFilters = {
     saturate: 100,
     blur: 0,
 };
-let studioTextOverlay = '';
+let textOverlayState = {
+    text: '',
+    fontFamily: 'Arial, sans-serif',
+    fontSize: 48,
+    color: '#FFFFFF',
+    isBold: false,
+    isItalic: false,
+    position: 'middle-center', // top-left, top-center, ..., bottom-right
+};
 let selectedImageStyles = new Set<string>();
+let imageGenerationSize = {
+    width: 1024,
+    height: 1024,
+    lockAspectRatio: true,
+};
 let isGeneratingImage = false;
 let isEnhancingImagePrompt = false;
 
 // Shared State
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
+const STUDIO_PREFERENCES_KEY = 'imageStudioPrefs';
 const THEME_KEY = 'flyergen-theme';
 const LAST_TAB_KEY = 'flyergen-last-tab';
 
@@ -319,6 +347,27 @@ function switchAppTab(targetTab: 'design' | 'studio') {
 }
 
 // --- PREFERENCES FUNCTIONS ---
+
+function saveStudioPrefs() {
+    const prefs = {
+        imageGenerationSize
+    };
+    localStorage.setItem(STUDIO_PREFERENCES_KEY, JSON.stringify(prefs));
+}
+
+const debouncedSaveStudioPrefs = debounce(saveStudioPrefs, 500);
+
+function loadStudioPrefs() {
+    const prefsString = localStorage.getItem(STUDIO_PREFERENCES_KEY);
+    if (prefsString) {
+        const prefs = JSON.parse(prefsString);
+        if (prefs.imageGenerationSize) {
+            imageGenerationSize = prefs.imageGenerationSize;
+        }
+    }
+    // Update UI with loaded or default values
+    updateImageSizeUI();
+}
 
 function savePrefs() {
     const prefs: any = {
@@ -1070,6 +1119,14 @@ function handleStudioImageUpload(files: FileList | null) {
         reader.onload = (e) => {
             studioCurrentImageSrc = e.target?.result as string;
             studioImageOutput.src = studioCurrentImageSrc;
+
+            // Wait for image to load before setting canvas size
+            studioImageOutput.onload = () => {
+                studioTextCanvas.width = studioImageOutput.naturalWidth;
+                studioTextCanvas.height = studioImageOutput.naturalHeight;
+                renderTextOnCanvas(); // Initial render
+            };
+            
             studioResultContainer.classList.remove('hidden');
             studioOutputPlaceholder.classList.add('hidden');
             studioDownloadControls.classList.remove('hidden');
@@ -1083,6 +1140,110 @@ function applyStudioImageFilters() {
     const filters = studioImageFilters;
     const filterString = `brightness(${filters.brightness}%) contrast(${filters.contrast}%) saturate(${filters.saturate}%) blur(${filters.blur}px)`;
     studioImageOutput.style.filter = filterString;
+}
+
+function renderTextOnCanvas() {
+    if (!studioTextCanvas) return;
+    const ctx = studioTextCanvas.getContext('2d');
+    if (!ctx) return;
+
+    // Clear canvas before drawing
+    ctx.clearRect(0, 0, studioTextCanvas.width, studioTextCanvas.height);
+
+    if (!textOverlayState.text) {
+        textStylePanel.classList.add('hidden');
+        return;
+    }
+    
+    textStylePanel.classList.remove('hidden');
+
+    // Apply styles
+    const fontStyle = textOverlayState.isItalic ? 'italic' : 'normal';
+    const fontWeight = textOverlayState.isBold ? 'bold' : 'normal';
+    ctx.font = `${fontStyle} ${fontWeight} ${textOverlayState.fontSize}px ${textOverlayState.fontFamily}`;
+    ctx.fillStyle = textOverlayState.color;
+
+    // Apply position
+    const { position } = textOverlayState;
+    if (position.includes('left')) {
+        ctx.textAlign = 'left';
+    } else if (position.includes('center')) {
+        ctx.textAlign = 'center';
+    } else if (position.includes('right')) {
+        ctx.textAlign = 'right';
+    }
+
+    if (position.includes('top')) {
+        ctx.textBaseline = 'top';
+    } else if (position.includes('middle')) {
+        ctx.textBaseline = 'middle';
+    } else if (position.includes('bottom')) {
+        ctx.textBaseline = 'bottom';
+    }
+    
+    // Calculate coordinates
+    const padding = 20; // Padding from the edges
+    let x = 0;
+    let y = 0;
+    
+    // Horizontal
+    if (ctx.textAlign === 'left') x = padding;
+    if (ctx.textAlign === 'center') x = studioTextCanvas.width / 2;
+    if (ctx.textAlign === 'right') x = studioTextCanvas.width - padding;
+
+    // Vertical
+    if (ctx.textBaseline === 'top') y = padding;
+    if (ctx.textBaseline === 'middle') y = studioTextCanvas.height / 2;
+    if (ctx.textBaseline === 'bottom') y = studioTextCanvas.height - padding;
+    
+    // Add a simple shadow for better visibility
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 2;
+
+    // Draw text line by line
+    const lines = textOverlayState.text.split('\n');
+    const lineHeight = textOverlayState.fontSize * 1.2;
+    let startY = y;
+    
+    // Adjust starting Y position for multiline text based on baseline
+    if(ctx.textBaseline === 'middle') {
+        startY -= (lines.length - 1) * lineHeight / 2;
+    } else if (ctx.textBaseline === 'bottom') {
+        startY -= (lines.length - 1) * lineHeight;
+    }
+
+    lines.forEach((line, index) => {
+        ctx.fillText(line, x, startY + (index * lineHeight));
+    });
+}
+
+function handleTextOverlayUpdate() {
+    textOverlayState.text = textOverlayInput.value;
+    renderTextOnCanvas();
+}
+
+function handleTextStyleUpdate() {
+    textOverlayState.fontFamily = fontFamilySelect.value;
+    textOverlayState.fontSize = parseInt(fontSizeSlider.value);
+    textOverlayState.color = fontColorPicker.value;
+    textOverlayState.isBold = fontBoldBtn.getAttribute('aria-pressed') === 'true';
+    textOverlayState.isItalic = fontItalicBtn.getAttribute('aria-pressed') === 'true';
+    renderTextOnCanvas();
+}
+
+function handleTextPositionUpdate(event: Event) {
+    const target = event.currentTarget as HTMLDivElement;
+    textOverlayState.position = target.dataset.position || 'middle-center';
+
+    textPositionGrid.forEach(option => {
+        const isSelected = option === target;
+        option.classList.toggle('selected', isSelected);
+        option.setAttribute('aria-checked', String(isSelected));
+    });
+    
+    renderTextOnCanvas();
 }
 
 async function handleEnhanceImagePromptClick() {
@@ -1116,6 +1277,112 @@ async function handleEnhanceImagePromptClick() {
     }
 }
 
+// --- Image Size Selector Logic ---
+function updateImageSizeUI() {
+    const { width, height } = imageGenerationSize;
+    customWidthInput.value = String(width);
+    customHeightInput.value = String(height);
+
+    // Update preview box aspect ratio
+    if (height > 0) {
+        sizePreviewBox.style.aspectRatio = `${width} / ${height}`;
+    }
+
+    // Check if current custom dimensions match a preset and select it
+    let matchedPreset = false;
+    sizePresetChips.forEach(chip => {
+        const presetW = parseInt(chip.dataset.width || '0');
+        const presetH = parseInt(chip.dataset.height || '0');
+        const isMatch = presetW === width && presetH === height;
+        chip.classList.toggle('selected', isMatch);
+        if (isMatch) matchedPreset = true;
+    });
+
+    // If no preset matches, deselect all
+    if (!matchedPreset) {
+        sizePresetChips.forEach(chip => chip.classList.remove('selected'));
+    }
+    
+    aspectRatioLockToggle.checked = imageGenerationSize.lockAspectRatio;
+}
+
+
+function handleSizePresetClick(event: MouseEvent) {
+    const target = event.currentTarget as HTMLButtonElement;
+    const newWidth = parseInt(target.dataset.width || '1024');
+    const newHeight = parseInt(target.dataset.height || '1024');
+
+    imageGenerationSize.width = newWidth;
+    imageGenerationSize.height = newHeight;
+    
+    updateImageSizeUI();
+    debouncedSaveStudioPrefs();
+}
+
+function handleCustomDimensionInput(e: Event) {
+    const target = e.target as HTMLInputElement;
+    const isWidth = target.id === 'custom-width-input';
+    let value = parseInt(target.value);
+
+    // Clamp values
+    if (value < 256) value = 256;
+    if (value > 2048) value = 2048;
+    target.value = String(value);
+
+    const oldWidth = imageGenerationSize.width;
+    const oldHeight = imageGenerationSize.height;
+
+    if (imageGenerationSize.lockAspectRatio) {
+        if (isWidth && oldWidth > 0) {
+            const ratio = oldHeight / oldWidth;
+            imageGenerationSize.height = Math.round(value * ratio);
+        } else if (!isWidth && oldHeight > 0) {
+            const ratio = oldWidth / oldHeight;
+            imageGenerationSize.width = Math.round(value * ratio);
+        }
+    }
+    
+    if (isWidth) {
+        imageGenerationSize.width = value;
+    } else {
+        imageGenerationSize.height = value;
+    }
+
+    updateImageSizeUI();
+    debouncedSaveStudioPrefs();
+}
+
+function handleAspectRatioLockToggle() {
+    imageGenerationSize.lockAspectRatio = aspectRatioLockToggle.checked;
+    debouncedSaveStudioPrefs();
+}
+
+function getClosestAspectRatio(width: number, height: number): '1:1' | '16:9' | '9:16' | '4:3' | '3:4' {
+    const ratio = width / height;
+    const supportedRatios = {
+        '16:9': 16/9, // ~1.77
+        '4:3': 4/3,   // ~1.33
+        '1:1': 1,
+        '3:4': 3/4,   // 0.75
+        '9:16': 9/16, // ~0.56
+    };
+
+    let closest = '1:1' as keyof typeof supportedRatios;
+    let minDiff = Math.abs(ratio - supportedRatios[closest]);
+
+    for (const key in supportedRatios) {
+        const r = key as keyof typeof supportedRatios;
+        const diff = Math.abs(ratio - supportedRatios[r]);
+        if (diff < minDiff) {
+            minDiff = diff;
+            closest = r;
+        }
+    }
+    return closest;
+}
+// --- End Image Size Selector Logic ---
+
+
 async function handleGenerateImageClick() {
     if (isGeneratingImage) return;
 
@@ -1139,6 +1406,8 @@ async function handleGenerateImageClick() {
         if (selectedImageStyles.size > 0) {
             fullPrompt += `, in the style of: ${Array.from(selectedImageStyles).join(', ')}.`;
         }
+        
+        const aspectRatio = getClosestAspectRatio(imageGenerationSize.width, imageGenerationSize.height);
 
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
@@ -1146,7 +1415,7 @@ async function handleGenerateImageClick() {
             config: {
                 numberOfImages: 1,
                 outputMimeType: 'image/png',
-                aspectRatio: '1:1', // Default, can be expanded later
+                aspectRatio: aspectRatio,
             },
         });
 
@@ -1154,6 +1423,13 @@ async function handleGenerateImageClick() {
             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
             studioCurrentImageSrc = `data:image/png;base64,${base64ImageBytes}`;
             studioImageOutput.src = studioCurrentImageSrc;
+            
+            studioImageOutput.onload = () => {
+                studioTextCanvas.width = studioImageOutput.naturalWidth;
+                studioTextCanvas.height = studioImageOutput.naturalHeight;
+                renderTextOnCanvas();
+            };
+
             studioResultContainer.classList.remove('hidden');
             studioDownloadControls.classList.remove('hidden');
             adjustmentControls.classList.remove('hidden');
@@ -1201,25 +1477,15 @@ async function handleExportImageClick(event: MouseEvent) {
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error("Could not create canvas context.");
 
-        // Apply filters
+        // Apply filters from the image element
         ctx.filter = studioImageOutput.style.filter;
         ctx.drawImage(image, 0, 0);
 
-        // Apply text overlay
-        if (studioTextOverlay) {
-            ctx.filter = 'none'; // Reset filter so text is not blurred, etc.
-            ctx.font = 'bold 64px sans-serif'; // Example style
-            ctx.fillStyle = 'white';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            // Simple drop shadow
-            ctx.shadowColor = 'rgba(0,0,0,0.7)';
-            ctx.shadowBlur = 10;
-            ctx.shadowOffsetX = 5;
-            ctx.shadowOffsetY = 5;
-            ctx.fillText(studioTextOverlay, canvas.width / 2, canvas.height / 2);
-        }
-
+        // Apply text overlay by drawing the text canvas on top
+        // This ensures text is not affected by filters
+        ctx.filter = 'none'; 
+        ctx.drawImage(studioTextCanvas, 0, 0);
+        
         let finalDataUrl = canvas.toDataURL(`image/${format}`, 0.9);
 
         // If JPG, we need to handle transparency by drawing on a white background first
@@ -1313,16 +1579,30 @@ function initialize() {
     saturateSlider = document.getElementById('saturate-slider') as HTMLInputElement;
     blurSlider = document.getElementById('blur-slider') as HTMLInputElement;
     textOverlayInput = document.getElementById('text-overlay-input') as HTMLTextAreaElement;
+    textStylePanel = document.getElementById('text-style-panel') as HTMLDivElement;
+    fontFamilySelect = document.getElementById('font-family-select') as HTMLSelectElement;
+    fontSizeSlider = document.getElementById('font-size-slider') as HTMLInputElement;
+    fontColorPicker = document.getElementById('font-color-picker') as HTMLInputElement;
+    fontBoldBtn = document.getElementById('font-bold-btn') as HTMLButtonElement;
+    fontItalicBtn = document.getElementById('font-italic-btn') as HTMLButtonElement;
+    textPositionGrid = document.querySelectorAll('#text-position-grid .logo-position-option');
     imagePromptInput = document.getElementById('image-prompt-input') as HTMLTextAreaElement;
     enhanceImagePromptBtn = document.getElementById('enhance-image-prompt-btn') as HTMLButtonElement;
     styleChips = document.querySelectorAll('.style-chip');
+    // -- Image Size Selector --
+    sizePresetChips = document.querySelectorAll('.size-preset-chip');
+    customWidthInput = document.getElementById('custom-width-input') as HTMLInputElement;
+    customHeightInput = document.getElementById('custom-height-input') as HTMLInputElement;
+    aspectRatioLockToggle = document.getElementById('aspect-ratio-lock-toggle') as HTMLInputElement;
+    sizePreviewBox = document.getElementById('size-preview-box') as HTMLDivElement;
+    // --
     generateImageBtn = document.getElementById('generate-image-btn') as HTMLButtonElement;
     studioOutputPlaceholder = document.getElementById('studio-output-placeholder') as HTMLDivElement;
     studioLoader = document.getElementById('studio-loader') as HTMLDivElement;
     studioLoaderText = document.getElementById('studio-loader-text') as HTMLParagraphElement;
     studioResultContainer = document.getElementById('studio-result-container') as HTMLDivElement;
     studioImageOutput = document.getElementById('studio-image-output') as HTMLImageElement;
-    textOverlayDisplay = document.getElementById('text-overlay-display') as HTMLDivElement;
+    studioTextCanvas = document.getElementById('studio-text-canvas') as HTMLCanvasElement;
     studioDownloadControls = document.querySelector('.studio-download-controls') as HTMLDivElement;
     studioFormatSelect = document.getElementById('studio-format-select') as HTMLSelectElement;
     studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLAnchorElement;
@@ -1391,10 +1671,24 @@ function initialize() {
     contrastSlider.addEventListener('input', () => { studioImageFilters.contrast = parseInt(contrastSlider.value); applyStudioImageFilters(); });
     saturateSlider.addEventListener('input', () => { studioImageFilters.saturate = parseInt(saturateSlider.value); applyStudioImageFilters(); });
     blurSlider.addEventListener('input', () => { studioImageFilters.blur = parseFloat(blurSlider.value); applyStudioImageFilters(); });
-    textOverlayInput.addEventListener('input', () => {
-        studioTextOverlay = textOverlayInput.value;
-        textOverlayDisplay.textContent = studioTextOverlay;
+    
+    // Text Overlay Listeners
+    textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
+    fontFamilySelect.addEventListener('input', handleTextStyleUpdate);
+    fontSizeSlider.addEventListener('input', handleTextStyleUpdate);
+    fontColorPicker.addEventListener('input', handleTextStyleUpdate);
+    fontBoldBtn.addEventListener('click', () => {
+        const isPressed = fontBoldBtn.getAttribute('aria-pressed') === 'true';
+        fontBoldBtn.setAttribute('aria-pressed', String(!isPressed));
+        handleTextStyleUpdate();
     });
+    fontItalicBtn.addEventListener('click', () => {
+        const isPressed = fontItalicBtn.getAttribute('aria-pressed') === 'true';
+        fontItalicBtn.setAttribute('aria-pressed', String(!isPressed));
+        handleTextStyleUpdate();
+    });
+    textPositionGrid.forEach(option => option.addEventListener('click', handleTextPositionUpdate));
+    
     imagePromptInput.addEventListener('input', () => {
         enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
     });
@@ -1413,12 +1707,19 @@ function initialize() {
             }
         });
     });
+    // -- Image Size Selector Listeners --
+    sizePresetChips.forEach(chip => chip.addEventListener('click', handleSizePresetClick));
+    customWidthInput.addEventListener('input', handleCustomDimensionInput);
+    customHeightInput.addEventListener('input', handleCustomDimensionInput);
+    aspectRatioLockToggle.addEventListener('change', handleAspectRatioLockToggle);
+    // --
     generateImageBtn.addEventListener('click', handleGenerateImageClick);
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
 
     // --- Final Setup ---
     loadTheme();
     handleLoadPrefs();
+    loadStudioPrefs();
     const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | null;
     if (lastTab) {
         switchAppTab(lastTab);
