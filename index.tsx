@@ -5,6 +5,7 @@ declare var Cropper: any;
 
 // --- DOM ELEMENT VARIABLES (to be assigned in initialize) ---
 let promptInput: HTMLTextAreaElement;
+let enhancePromptBtn: HTMLButtonElement;
 let companyNameInput: HTMLInputElement;
 let contactDetailsInput: HTMLTextAreaElement;
 let imageUploadArea: HTMLDivElement;
@@ -45,6 +46,7 @@ let cancelCropBtn: HTMLButtonElement;
 let logoDataUrl: string | null = null;
 let cropper: any | null = null; // Cropper instance
 let isGenerating = false;
+let isEnhancing = false;
 let loadingInterval: number | null = null; // For cycling loading messages
 let selectedPalette = 'default';
 let selectedLayout = 'balanced';
@@ -226,6 +228,9 @@ function handleLoadPrefs() {
     const prefs = JSON.parse(prefsString);
 
     promptInput.value = prefs.prompt || '';
+    // After loading, check if the enhance button should be enabled
+    enhancePromptBtn.disabled = !promptInput.value.trim();
+
     companyNameInput.value = prefs.companyName || '';
     contactDetailsInput.value = prefs.contactDetails || '';
 
@@ -349,6 +354,7 @@ function handleClearPrefs() {
 
     // --- Reset the UI to reflect the default state ---
     promptInput.value = '';
+    enhancePromptBtn.disabled = true;
     companyNameInput.value = '';
     contactDetailsInput.value = '';
     
@@ -390,6 +396,40 @@ function handleClearPrefs() {
 }
 
 // --- EVENT HANDLERS ---
+async function handleEnhancePromptClick() {
+    if (isEnhancing || !promptInput.value.trim()) return;
+
+    isEnhancing = true;
+    enhancePromptBtn.disabled = true;
+    enhancePromptBtn.classList.add('loading');
+    
+    const currentText = promptInput.value.trim();
+    const enhancePrompt = `Enhance and expand upon this flyer description to make it more creative, evocative, and detailed for an AI image generator. Return only the enhanced description text, without any introductory phrases like "Here's the enhanced description:":\n\n"${currentText}"`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: enhancePrompt,
+        });
+        
+        const newText = response.text.trim();
+        if (newText) {
+            promptInput.value = newText;
+            debouncedSavePrefs(); // Auto-save the new description
+        } else {
+            // Use existing error display to show a message if response is empty
+            showError("The AI couldn't enhance the description. Please try again.");
+        }
+    } catch (error) {
+        parseAndShowError(error);
+    } finally {
+        isEnhancing = false;
+        enhancePromptBtn.classList.remove('loading');
+        // Re-enable button only if there's still text
+        enhancePromptBtn.disabled = !promptInput.value.trim();
+    }
+}
+
 function handleLogoSelection(files: FileList | null) {
     if (files && files.length > 0) {
         const file = files[0];
@@ -579,18 +619,18 @@ function handleTextEffectSelection(event: Event) {
 function parseAndShowError(error: unknown) {
     console.error("Flyer Generation Error:", error);
 
-    let userMessage = "An unexpected error occurred during generation. Please check the console for details and try again.";
+    let userMessage = "An unexpected error occurred. Please check the console for details and try again.";
 
     // Convert the error to a string to check for keywords
     if (error instanceof Error) {
         const errorString = error.message.toLowerCase();
 
         if (errorString.includes('api key')) {
-            userMessage = "Generation failed due to an API key issue. Please ensure the key is valid and configured correctly.";
+            userMessage = "Operation failed due to an API key issue. Please ensure the key is valid and configured correctly.";
         } else if (errorString.includes('permission denied')) {
-             userMessage = "Generation failed due to a permission issue. Please check your API key permissions.";
+             userMessage = "Operation failed due to a permission issue. Please check your API key permissions.";
         } else if (errorString.includes('blocked')) {
-            userMessage = "Your request was blocked due to safety policies. Please adjust your prompt text and try again.";
+            userMessage = "Your request was blocked due to safety policies. Please adjust your text and try again.";
         } else if (errorString.includes('quota')) {
             userMessage = "You have exceeded your API quota. Please check your account usage and limits.";
         } else if (errorString.includes('500') || errorString.includes('503') || errorString.includes('service unavailable')) {
@@ -875,6 +915,7 @@ async function handleDownloadClick(event: MouseEvent) {
 function initialize() {
     // Assign all DOM elements
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
+    enhancePromptBtn = document.getElementById('enhance-prompt-btn') as HTMLButtonElement;
     companyNameInput = document.getElementById('company-name-input') as HTMLInputElement;
     contactDetailsInput = document.getElementById('contact-details-input') as HTMLTextAreaElement;
     imageUploadArea = document.getElementById('image-upload-area') as HTMLDivElement;
@@ -911,7 +952,7 @@ function initialize() {
 
     // Comprehensive check for critical elements
     const requiredElements = {
-        promptInput, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
+        promptInput, enhancePromptBtn, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
         generateBtn, downloadBtn, clearPrefsBtn, downloadControls, formatSelect,
         logoPreview, uploadPlaceholder, outputPlaceholder, loader, loaderText,
         resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,
@@ -935,6 +976,7 @@ function initialize() {
 
     // Attach all event listeners
     themeSwitcherBtn.addEventListener('click', toggleTheme);
+    enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
 
     imageUploadArea.addEventListener('click', (e) => {
         // Prevent click on logoUpload when remove button is clicked
@@ -1036,7 +1078,10 @@ function initialize() {
     });
 
     // Add listeners for auto-saving text inputs
-    promptInput.addEventListener('input', debouncedSavePrefs);
+    promptInput.addEventListener('input', () => {
+        enhancePromptBtn.disabled = !promptInput.value.trim();
+        debouncedSavePrefs();
+    });
     companyNameInput.addEventListener('input', debouncedSavePrefs);
     contactDetailsInput.addEventListener('input', debouncedSavePrefs);
 
