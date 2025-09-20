@@ -68,6 +68,11 @@ let studioGeneratePanel: HTMLDivElement;
 let studioImageUploadArea: HTMLDivElement;
 let studioLogoUpload: HTMLInputElement;
 let studioUploadPlaceholder: HTMLDivElement;
+let uploadedImagesContainer: HTMLDivElement;
+let uploadedImagesList: HTMLDivElement;
+let mergeControls: HTMLDivElement;
+let mergePromptInput: HTMLTextAreaElement;
+let mergeImagesBtn: HTMLButtonElement;
 let adjustmentControls: HTMLDivElement;
 // -- AI Edit elements --
 let aiEditSection: HTMLDivElement;
@@ -132,6 +137,9 @@ let selectedLogoSize = 'medium';
 let selectedLogoPosition = 'top-right';
 
 // Image Studio State
+let uploadedStudioImages: { id: number; src: string }[] = [];
+let selectedStudioImageId: number | null = null;
+let nextImageId = 0;
 let studioImageHistory: string[] = [];
 let studioHistoryIndex = -1;
 let studioCurrentImageSrc: string | null = null;
@@ -165,6 +173,7 @@ let activeMic: {
 let isGeneratingImage = false;
 let isEnhancingImagePrompt = false;
 let isApplyingAiEdit = false;
+let isMerging = false;
 
 // Shared State
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
@@ -1134,6 +1143,15 @@ function renderCurrentImageFromHistory() {
     const imageDataUrl = studioImageHistory[studioHistoryIndex];
     studioCurrentImageSrc = imageDataUrl;
     studioImageOutput.src = imageDataUrl;
+
+    // Update the image source in the main state array as well
+    if (selectedStudioImageId !== null) {
+        const imageIndex = uploadedStudioImages.findIndex(img => img.id === selectedStudioImageId);
+        if (imageIndex > -1) {
+            uploadedStudioImages[imageIndex].src = imageDataUrl;
+            renderUploadedImageThumbnails(); // Re-render to show updated thumb if needed
+        }
+    }
     
     // Reset manual adjustments when history changes
     brightnessSlider.value = '100';
@@ -1194,29 +1212,123 @@ function handleStudioTabSwitch(targetTab: 'edit' | 'generate') {
     }
 }
 
+function renderUploadedImageThumbnails() {
+    uploadedImagesList.innerHTML = ''; // Clear existing thumbnails
+    if (uploadedStudioImages.length > 0) {
+        uploadedImagesContainer.classList.remove('hidden');
+    } else {
+        uploadedImagesContainer.classList.add('hidden');
+    }
+
+    // Show merge controls if there are 2 or more images
+    mergeControls.classList.toggle('hidden', uploadedStudioImages.length < 2);
+
+    uploadedStudioImages.forEach(image => {
+        const thumbItem = document.createElement('div');
+        thumbItem.className = 'thumbnail-item';
+
+        const img = document.createElement('img');
+        img.src = image.src;
+        img.dataset.id = String(image.id);
+        img.alt = `Uploaded image ${image.id}`;
+        img.classList.toggle('selected', image.id === selectedStudioImageId);
+        img.addEventListener('click', () => handleThumbnailClick(image.id));
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-thumb-btn';
+        removeBtn.innerHTML = '&times;';
+        removeBtn.ariaLabel = `Remove image ${image.id}`;
+        removeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            handleRemoveThumbnail(image.id);
+        });
+
+        thumbItem.appendChild(img);
+        thumbItem.appendChild(removeBtn);
+        uploadedImagesList.appendChild(thumbItem);
+    });
+}
+
+function setActiveStudioImage(src: string | null) {
+    if (src) {
+        studioCurrentImageSrc = src;
+        // Reset history for the newly selected image
+        studioImageHistory = [src];
+        studioHistoryIndex = 0;
+        
+        studioResultContainer.classList.remove('hidden');
+        studioOutputPlaceholder.classList.add('hidden');
+        studioDownloadControls.classList.remove('hidden');
+        adjustmentControls.classList.remove('hidden');
+        aiEditSection.classList.remove('hidden');
+
+        renderCurrentImageFromHistory();
+    } else {
+        // No image is selected, hide everything
+        studioCurrentImageSrc = null;
+        studioResultContainer.classList.add('hidden');
+        studioOutputPlaceholder.classList.remove('hidden');
+        studioDownloadControls.classList.add('hidden');
+        adjustmentControls.classList.add('hidden');
+        aiEditSection.classList.add('hidden');
+    }
+}
+
+function handleThumbnailClick(id: number) {
+    if (id === selectedStudioImageId) return; // Already selected
+
+    selectedStudioImageId = id;
+    const selectedImage = uploadedStudioImages.find(img => img.id === id);
+    if (selectedImage) {
+        setActiveStudioImage(selectedImage.src);
+    }
+    renderUploadedImageThumbnails(); // Re-render to update selection style
+}
+
+function handleRemoveThumbnail(idToRemove: number) {
+    uploadedStudioImages = uploadedStudioImages.filter(img => img.id !== idToRemove);
+
+    if (selectedStudioImageId === idToRemove) {
+        // If the removed image was the selected one, select the first one remaining
+        if (uploadedStudioImages.length > 0) {
+            selectedStudioImageId = uploadedStudioImages[0].id;
+            setActiveStudioImage(uploadedStudioImages[0].src);
+        } else {
+            selectedStudioImageId = null;
+            setActiveStudioImage(null);
+        }
+    }
+    
+    renderUploadedImageThumbnails();
+}
+
 function handleStudioImageUpload(files: FileList | null) {
     if (files && files.length > 0) {
-        const file = files[0];
-        if (!file.type.startsWith('image/')) {
-            showError('Please select a valid image file (JPG, PNG, WEBP).', true);
-            return;
+        const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+        if (validFiles.length === 0) {
+             showError('Please select valid image files (JPG, PNG, WEBP).', true);
+             return;
         }
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const imageDataUrl = e.target?.result as string;
-            // Reset history and add the new upload as the first state
-            studioImageHistory = [];
-            studioHistoryIndex = -1;
-            addHistoryState(imageDataUrl);
-            
-            studioResultContainer.classList.remove('hidden');
-            studioOutputPlaceholder.classList.add('hidden');
-            studioDownloadControls.classList.remove('hidden');
-            adjustmentControls.classList.remove('hidden');
-            aiEditSection.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
+        let firstImageAdded = false;
+
+        validFiles.forEach(file => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const imageDataUrl = e.target?.result as string;
+                const newImage = { id: nextImageId++, src: imageDataUrl };
+                uploadedStudioImages.push(newImage);
+
+                // If no image is currently selected, select the first one we upload
+                if (!firstImageAdded) {
+                    selectedStudioImageId = newImage.id;
+                    setActiveStudioImage(newImage.src);
+                    firstImageAdded = true;
+                }
+                renderUploadedImageThumbnails();
+            };
+            reader.readAsDataURL(file);
+        });
     }
 }
 
@@ -1417,6 +1529,78 @@ async function handleApplyAiEditClick() {
     }
 }
 
+async function handleMergeImagesClick() {
+    if (isMerging || uploadedStudioImages.length < 2) return;
+
+    const prompt = mergePromptInput.value.trim();
+    if (!prompt) {
+        showError("Please describe how you want to merge the images.", true);
+        return;
+    }
+
+    isMerging = true;
+    mergeImagesBtn.disabled = true;
+    mergeImagesBtn.classList.add('loading');
+    studioLoader.classList.remove('hidden');
+    studioLoaderText.textContent = 'Merging images with AI...';
+    studioResultContainer.classList.add('hidden');
+    studioErrorMessage.classList.add('hidden');
+
+    try {
+        const parts: ({ text: string } | { inlineData: { data: string, mimeType: string } })[] = [];
+        parts.push({ text: prompt });
+
+        for (const image of uploadedStudioImages) {
+            const base64ImageData = image.src.split(',')[1];
+            const mimeType = image.src.substring(image.src.indexOf(':') + 1, image.src.indexOf(';'));
+            parts.push({ inlineData: { data: base64ImageData, mimeType: mimeType } });
+        }
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: { parts },
+            config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
+        });
+
+        let foundImage = false;
+        if (response.candidates && response.candidates.length > 0) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    const newBase64 = part.inlineData.data;
+                    const newMimeType = part.inlineData.mimeType;
+                    const newImageUrl = `data:${newMimeType};base64,${newBase64}`;
+                    
+                    // Replace all uploaded images with the new merged one
+                    const mergedImage = { id: nextImageId++, src: newImageUrl };
+                    uploadedStudioImages = [mergedImage];
+                    selectedStudioImageId = mergedImage.id;
+
+                    setActiveStudioImage(mergedImage.src);
+                    renderUploadedImageThumbnails();
+
+                    foundImage = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!foundImage) {
+            showError("The AI couldn't merge the images. Please try a different prompt.", true);
+        }
+
+    } catch (error) {
+        parseAndShowError(error, true);
+    } finally {
+        isMerging = false;
+        mergeImagesBtn.disabled = false;
+        mergeImagesBtn.classList.remove('loading');
+        studioLoader.classList.add('hidden');
+        if (studioCurrentImageSrc) {
+            studioResultContainer.classList.remove('hidden');
+        }
+    }
+}
+
 async function handleEnhanceImagePromptClick() {
     if (isEnhancingImagePrompt || !imagePromptInput.value.trim()) return;
 
@@ -1594,14 +1778,16 @@ async function handleGenerateImageClick() {
             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
             const newImageDataUrl = `data:image/png;base64,${base64ImageBytes}`;
             
-            studioImageHistory = [];
-            studioHistoryIndex = -1;
-            addHistoryState(newImageDataUrl);
+            // Add the new image to the uploaded list and select it
+            const newImage = { id: nextImageId++, src: newImageDataUrl };
+            uploadedStudioImages.push(newImage);
+            selectedStudioImageId = newImage.id;
+            setActiveStudioImage(newImage.src);
+            renderUploadedImageThumbnails();
+            
+            // Switch to the edit tab to show the new image and controls
+            handleStudioTabSwitch('edit');
 
-            studioResultContainer.classList.remove('hidden');
-            studioDownloadControls.classList.remove('hidden');
-            adjustmentControls.classList.remove('hidden');
-            aiEditSection.classList.remove('hidden');
         } else {
             showError("The AI couldn't generate an image from that prompt. Please try refining it.", true);
         }
@@ -1743,6 +1929,11 @@ function initialize() {
     studioImageUploadArea = document.getElementById('studio-image-upload-area') as HTMLDivElement;
     studioLogoUpload = document.getElementById('studio-logo-upload') as HTMLInputElement;
     studioUploadPlaceholder = document.getElementById('studio-upload-placeholder') as HTMLDivElement;
+    uploadedImagesContainer = document.getElementById('uploaded-images-container') as HTMLDivElement;
+    uploadedImagesList = document.getElementById('uploaded-images-list') as HTMLDivElement;
+    mergeControls = document.getElementById('merge-controls') as HTMLDivElement;
+    mergePromptInput = document.getElementById('merge-prompt-input') as HTMLTextAreaElement;
+    mergeImagesBtn = document.getElementById('merge-images-btn') as HTMLButtonElement;
     adjustmentControls = document.querySelector('.adjustment-controls') as HTMLDivElement;
     aiEditSection = document.getElementById('ai-edit-section') as HTMLDivElement;
     aiEditPromptInput = document.getElementById('ai-edit-prompt-input') as HTMLTextAreaElement;
@@ -1854,6 +2045,7 @@ function initialize() {
     });
     enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
     applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
+    mergeImagesBtn.addEventListener('click', handleMergeImagesClick);
 
     // Text Overlay Listeners
     textOverlayInput.addEventListener('input', handleTextOverlayUpdate);

@@ -278,13 +278,27 @@
             
                         <div id="studio-edit-panel" class="studio-panel active">
                             <h2>Upload & Adjust</h2>
-                            <div id="studio-image-upload-area" role="button" aria-label="Upload your image" tabindex="0">
-                                <input type="file" id="studio-logo-upload" accept="image/*" class="hidden">
+                            <div id="studio-image-upload-area" role="button" aria-label="Upload your image(s)" tabindex="0">
+                                <input type="file" id="studio-logo-upload" accept="image/*" class="hidden" multiple>
                                 <div id="studio-upload-placeholder">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                                     <p>Click to upload or drag & drop</p>
-                                    <span>JPG, PNG, WEBP</span>
+                                    <span>Upload Image(s) - JPG, PNG, WEBP</span>
                                 </div>
+                            </div>
+                            
+                            <div id="uploaded-images-container" class="hidden">
+                                <h2>Uploaded Images</h2>
+                                <div id="uploaded-images-list"></div>
+                            </div>
+
+                            <div id="merge-controls" class="hidden">
+                                <h2>Merge Images</h2>
+                                <textarea id="merge-prompt-input" rows="2" placeholder="Describe how to merge the images... e.g., 'Combine these into a single landscape, putting the cat on the far left.'"></textarea>
+                                <button id="merge-images-btn" class="btn">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L9.5 9.5 3 12l6.5 2.5L12 21l2.5-6.5L21 12l-6.5-2.5L12 3z"/></svg>
+                                    <span>Merge All Images</span>
+                                </button>
                             </div>
                             
                             <div class="adjustment-controls hidden">
@@ -301,7 +315,7 @@
                                             </button>
                                         </div>
                                     </div>
-                                    <button id="apply-ai-edit-btn" class="btn btn-secondary">Apply Edit</button>
+                                    <button id="apply-ai-edit-btn" class="btn">Apply Edit</button>
                                 </div>
 
                                 <h2>Adjustments</h2>
@@ -435,7 +449,7 @@
                         <div id="studio-output-placeholder">
                             <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                             <h3>Your image will appear here</h3>
-                            <p>Upload an image to start editing or generate a new one.</p>
+                            <p>Select an image to start editing or generate a new one.</p>
                         </div>
 
                         <div id="studio-loader" class="hidden">
