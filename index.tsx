@@ -46,6 +46,7 @@ let cancelCropBtn: HTMLButtonElement;
 let logoDataUrl: string | null = null;
 let cropper: any | null = null; // Cropper instance
 let isGenerating = false;
+let loadingInterval: number | null = null; // For cycling loading messages
 let selectedPalette = 'default';
 let selectedLayout = 'balanced';
 let selectedBackgroundType: 'none' | 'color' | 'image' = 'none';
@@ -64,31 +65,26 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // --- HELPER FUNCTIONS ---
 
-/**
- * Converts an SVG data URL to a PNG base64 string.
- * This is necessary because the model does not support SVG as an input format for backgrounds.
- */
-function svgDataUrlToPngBase64(svgDataUrl: string, width: number = 512, height: number = 512): Promise<string> {
-    return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.crossOrigin = 'anonymous'; // Enable cross-origin loading to prevent tainted canvas
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = width;
-            canvas.height = height;
-            const ctx = canvas.getContext('2d');
-            if (!ctx) {
-                return reject(new Error('Could not get canvas context'));
-            }
-            ctx.drawImage(img, 0, 0, width, height);
-            // Get PNG data URL and extract base64 part
-            resolve(canvas.toDataURL('image/png').split(',')[1]);
-        };
-        img.onerror = (err) => reject(new Error(`Failed to load SVG image for conversion: ${err}`));
-        img.src = svgDataUrl;
-    });
-}
+const loadingMessages = [
+    'Warming up the AI design engine...',
+    'Sketching initial flyer concepts...',
+    'Mixing the perfect color palette...',
+    'Choosing a stunning font pairing...',
+    'Arranging the layout for impact...',
+    'Adding the final creative touches...',
+    'Polishing the design to perfection...'
+];
 
+/**
+ * Hides the main loader and stops any message cycling.
+ */
+function hideLoading() {
+    if (loader) loader.classList.add('hidden');
+    if (loadingInterval) {
+        clearInterval(loadingInterval);
+        loadingInterval = null;
+    }
+}
 
 function showPrefsFeedback(message: string) {
     prefsFeedback.textContent = message;
@@ -112,23 +108,45 @@ function setGenerating(generating: boolean) {
     }
 }
 
-function showLoading(message: string) {
+function showLoading(message: string, cycleMessages = false) {
     if (outputPlaceholder) outputPlaceholder.classList.add('hidden');
     if (resultContainer) resultContainer.classList.add('hidden');
     if (errorMessage) errorMessage.classList.add('hidden');
     if (loader) loader.classList.remove('hidden');
+
+    // Stop any existing interval
+    if (loadingInterval) {
+        clearInterval(loadingInterval);
+        loadingInterval = null;
+    }
+
     if (loaderText) loaderText.textContent = message;
+
+    if (cycleMessages) {
+        let messageIndex = 0;
+
+        // Immediately set the first message from the array
+        if (loaderText) loaderText.textContent = loadingMessages[messageIndex];
+        messageIndex = (messageIndex + 1) % loadingMessages.length;
+
+        loadingInterval = window.setInterval(() => {
+            if (loaderText) {
+                loaderText.textContent = loadingMessages[messageIndex];
+            }
+            messageIndex = (messageIndex + 1) % loadingMessages.length;
+        }, 2200);
+    }
 }
 
 function showResult(imageDataUrl: string) {
-    if (loader) loader.classList.add('hidden');
+    hideLoading();
     if (flyerOutput) flyerOutput.src = imageDataUrl;
     if (resultContainer) resultContainer.classList.remove('hidden');
     if (downloadControls) downloadControls.classList.remove('hidden');
 }
 
 function showError(message: string) {
-    if (loader) loader.classList.add('hidden');
+    hideLoading();
     if (errorMessage) {
         errorMessage.textContent = message;
         errorMessage.classList.remove('hidden');
@@ -212,9 +230,16 @@ function handleLoadPrefs() {
         selectedBackgroundValue = prefs.bgValue;
         backgroundOptions.forEach(option => {
             const el = option as HTMLElement;
-            const isSelected = el.dataset.bgType === selectedBackgroundType && (el.dataset.bgValue === selectedBackgroundValue || (el as HTMLImageElement).src === selectedBackgroundValue);
-            el.classList.toggle('selected', isSelected);
-            el.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+            let isMatch = false;
+
+            if (el.dataset.bgType === prefs.bgType) {
+                 if (prefs.bgType === 'color' || prefs.bgType === 'none') {
+                    isMatch = el.dataset.bgValue === prefs.bgValue;
+                }
+            }
+
+            el.classList.toggle('selected', isMatch);
+            el.setAttribute('aria-checked', isMatch ? 'true' : 'false');
         });
     }
 
@@ -410,9 +435,9 @@ function handleLayoutSelection(event: Event) {
 
 function handleBackgroundSelection(event: Event) {
     const target = event.currentTarget as HTMLElement;
-    
+
     selectedBackgroundType = (target.dataset.bgType as 'none' | 'color' | 'image') || 'none';
-    selectedBackgroundValue = target.dataset.bgValue || (target as HTMLImageElement).src || null;
+    selectedBackgroundValue = target.dataset.bgValue || null;
 
     backgroundOptions.forEach(option => {
         option.classList.remove('selected');
@@ -507,89 +532,434 @@ async function handleGenerateClick() {
     }
 
     setGenerating(true);
-    showLoading('Warming up the design studio...');
+    showLoading('Warming up the design studio...', true);
 
     try {
         const parts: ({ text: string } | { inlineData: { data: string, mimeType: string } })[] = [];
         
-        const companyName = companyNameInput?.value.trim();
-        let companyNameInstruction = '';
-        if (companyName) {
-            companyNameInstruction = `The company name is "${companyName}". Make sure to feature it prominently where appropriate.`;
-        }
+        // --- Build individual instructions ---
         
+        const companyName = companyNameInput?.value.trim();
         const contactDetails = contactDetailsInput?.value.trim();
-        let contactDetailsInstruction = '';
-        if (contactDetails) {
-            contactDetailsInstruction = `Include the following contact details in the flyer, making them clear and easy to read: "${contactDetails}".`;
-        }
 
-        let paletteInstruction = '';
+        let paletteInstruction = `Use an appropriate color palette based on the flyer's concept.`;
         if (selectedPalette && selectedPalette !== 'default') {
             const selectedOption = document.querySelector(`.palette-option[data-palette-name="${selectedPalette}"]`);
             const paletteColors = selectedOption?.getAttribute('data-palette-colors');
             if (paletteColors) {
-                 paletteInstruction = `Use the following color palette named '${selectedPalette}' for the flyer's design: ${paletteColors}. This should influence the background, text, and graphical elements to create a cohesive theme.`;
+                 paletteInstruction = `Strictly use the color palette named '${selectedPalette}' with these colors: ${paletteColors}. Apply it to all elements for a cohesive theme.`;
             }
         }
 
         let layoutInstruction = '';
         switch (selectedLayout) {
             case 'text-focus':
-                layoutInstruction = 'Arrange the content with a primary focus on the text, making it the most prominent element, with the logo and imagery being secondary.';
+                layoutInstruction = 'A text-focused layout where typography is the dominant visual element.';
                 break;
             case 'image-focus':
-                layoutInstruction = 'Arrange the content to be image-heavy, where the visuals are the main focus. The text and logo should complement the imagery without dominating it.';
+                layoutInstruction = 'An image-focused layout where visuals are central. Text should complement the imagery.';
                 break;
             case 'balanced':
             default:
-                layoutInstruction = 'Arrange the content in a balanced layout, giving the logo, text, and imagery equal importance and visual weight.';
+                layoutInstruction = 'A balanced layout, giving equal visual weight to the logo, text, and any imagery.';
                 break;
         }
 
-        let backgroundInstruction = '';
+        let backgroundInstruction = `Use a background that complements the overall design. A transparent background is acceptable if no specific background is requested.`;
         if (selectedBackgroundType === 'color' && selectedBackgroundValue) {
-            backgroundInstruction = `Use a solid background color of ${selectedBackgroundValue}. If a color palette is also selected, this color should be considered a suggestion that can be overridden by the palette for better harmony.`;
-        } else if (selectedBackgroundType === 'image' && selectedBackgroundValue) {
-            showLoading('Preparing background image...');
-            const bgPngBase64 = await svgDataUrlToPngBase64(selectedBackgroundValue);
-            parts.push({
-                inlineData: {
-                    data: bgPngBase64,
-                    mimeType: 'image/png', // Use the correct, converted MIME type
-                },
-            });
-            backgroundInstruction = 'Use the first image provided as the main background for the flyer. The second image provided is the company logo.';
-            showLoading('Warming up the design studio...'); // Reset loading message
+            backgroundInstruction = `Use a solid background color of ${selectedBackgroundValue}. If a palette is selected, this color may be adjusted to fit the palette.`;
         }
 
         let fontInstruction = '';
         switch (selectedFont) {
             case 'serif':
-                fontInstruction = 'Use a classic and elegant Serif font style for the text.';
+                fontInstruction = 'a classic and elegant Serif font style.';
                 break;
             case 'script':
-                fontInstruction = 'Use a flowing and decorative Script font style for the text.';
+                fontInstruction = 'a flowing and decorative Script font style.';
                 break;
             case 'modern':
-                fontInstruction = 'Use a clean, geometric, and Modern font style for the text.';
+                fontInstruction = 'a clean, geometric, and Modern font style.';
                 break;
             case 'classic':
-                fontInstruction = 'Use a timeless and traditional Classic font style for the text.';
+                fontInstruction = 'a timeless and traditional Classic font style.';
                 break;
             case 'futuristic':
-                fontInstruction = 'Use a sleek, minimalist, and Futuristic font style for the text.';
+                fontInstruction = 'a sleek, minimalist, and Futuristic font style.';
                 break;
             case 'sans-serif':
             default:
-                fontInstruction = 'Use a clean and highly readable Sans-serif font style for the text.';
+                fontInstruction = 'a clean and highly readable Sans-serif font style.';
                 break;
         }
 
         let sizeInstruction = '';
         switch (selectedSize) {
             case 'us-letter':
-                sizeInstruction = 'The flyer dimensions should be in a standard US Letter portrait aspect ratio (8.5:11).';
+                sizeInstruction = 'US Letter portrait aspect ratio (8.5:11).';
                 break;
             case 'square-post':
-                sizeInstruction = 'The flyer dimensions should be a perfect square (1:1 aspect
+                sizeInstruction = 'perfect square aspect ratio (1:1).';
+                break;
+            case 'social-banner':
+                sizeInstruction = 'landscape 16:9 aspect ratio.';
+                break;
+            case 'a4-portrait':
+            default:
+                sizeInstruction = 'standard A4 portrait aspect ratio.';
+                break;
+        }
+        
+        let textEffectInstruction = 'None';
+        if (selectedTextEffects.size > 0) {
+            textEffectInstruction = Array.from(selectedTextEffects).join(', ');
+        }
+
+        let logoInstruction = `Integrate the provided logo naturally.`;
+        if (selectedLogoSize) {
+            logoInstruction += ` The logo's size should be ${selectedLogoSize} relative to the flyer.`;
+        }
+        if (selectedLogoPosition) {
+            const positionText = selectedLogoPosition.replace('-', ' ');
+            logoInstruction += ` Place it in the ${positionText} area.`;
+        }
+
+        // --- Build structured text content section ---
+        const textElements = [];
+        if (companyName) {
+            textElements.push(`- **Company Name:** "${companyName}" (This must be rendered exactly as written and featured prominently).`);
+        }
+        if (contactDetails) {
+            textElements.push(`- **Contact Details:** "${contactDetails}" (This must be rendered exactly as written and be perfectly legible).`);
+        }
+        const textContentInstruction = textElements.length > 0
+            ? `
+## Text Content to Include
+**Crucial:** Render all text below with 100% accuracy—no extra words, no misspellings. The text must be sharp and easy to read.
+${textElements.join('\n')}
+`
+            : '';
+
+        // --- Assemble the final, structured prompt ---
+        const fullPrompt = `
+# INSTRUCTION: CREATE A HIGH-QUALITY PRINT FLYER
+
+## Primary Goal
+Generate a professional, visually appealing flyer suitable for high-quality printing (300 DPI). The final image must be exceptionally sharp, with crisp graphics and perfectly legible, accurately rendered text.
+
+## Core Flyer Concept
+Based on this user description: "${prompt}"
+${textContentInstruction}
+
+## Design Specifications
+- **Layout:** ${layoutInstruction}
+- **Color Palette:** ${paletteInstruction}
+- **Background:** ${backgroundInstruction}
+- **Typography:** Use ${fontInstruction} Apply these effects where appropriate for emphasis: ${textEffectInstruction}.
+- **Dimensions:** The final image must have a ${sizeInstruction}
+- **Logo Integration:** ${logoInstruction}
+`;
+        
+        // Add logo (always PNG after cropping)
+        const logoBase64 = logoDataUrl.split(',')[1];
+        parts.push({
+            inlineData: {
+                data: logoBase64,
+                mimeType: 'image/png',
+            },
+        });
+
+        // Add prompt
+        parts.push({ text: fullPrompt.trim() });
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: { parts: parts },
+            config: {
+                responseModalities: [Modality.IMAGE, Modality.TEXT],
+            },
+        });
+        
+        let foundImage = false;
+        if (response.candidates && response.candidates.length > 0) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    const base64ImageBytes = part.inlineData.data;
+                    const mimeType = part.inlineData.mimeType;
+                    const imageUrl = `data:${mimeType};base64,${base64ImageBytes}`;
+                    showResult(imageUrl);
+                    foundImage = true;
+                    break; 
+                }
+            }
+        }
+        
+        if (!foundImage) {
+             showError("The AI couldn't generate a flyer image. Try refining your prompt.");
+        }
+
+    } catch (error) {
+        parseAndShowError(error);
+    } finally {
+        setGenerating(false);
+    }
+}
+
+async function handleDownloadClick(event: MouseEvent) {
+    event.preventDefault();
+
+    // Prevent multiple clicks if download is already in progress
+    if (downloadBtn.classList.contains('disabled')) {
+        return;
+    }
+
+    const format = formatSelect.value;
+    const dataUrl = flyerOutput.src;
+    const fileName = `flyer.${format}`;
+
+    if (!dataUrl || !dataUrl.startsWith('data:image')) {
+        showError("No flyer image to download.");
+        return;
+    }
+    
+    // Set downloading state
+    const originalButtonText = downloadBtn.textContent;
+    downloadBtn.textContent = 'Preparing...';
+    downloadBtn.classList.add('disabled');
+
+    try {
+        let finalDataUrl = dataUrl;
+
+        // If JPG is selected, convert the PNG source to JPG
+        if (format === 'jpg') {
+            finalDataUrl = await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        return reject(new Error('Could not get canvas context'));
+                    }
+                    // Fill background with white. PNGs can have transparency, which becomes black in JPGs.
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    // Get JPG data URL with 90% quality
+                    resolve(canvas.toDataURL('image/jpeg', 0.9));
+                };
+                img.onerror = () => reject(new Error('Failed to load image for conversion.'));
+                img.src = dataUrl;
+            });
+        }
+
+        // Convert the final data URL (either original PNG or new JPG) to a blob
+        const response = await fetch(finalDataUrl);
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        // Create a temporary link to trigger the download
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        
+        // This is the key fix: ensure the link is part of the DOM
+        // for the click event to be reliably dispatched in all environments.
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        
+        // Clean up the DOM
+        document.body.removeChild(link);
+        
+        // Delay revoking the object URL to ensure the download has time to start
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
+        
+    } catch (error) {
+        console.error("Download failed:", error);
+        showError("Sorry, the download could not be completed.");
+    } finally {
+        // Reset button state
+        downloadBtn.textContent = originalButtonText;
+        downloadBtn.classList.remove('disabled');
+    }
+}
+
+
+// --- INITIALIZATION ---
+function initialize() {
+    // Assign all DOM elements
+    promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
+    companyNameInput = document.getElementById('company-name-input') as HTMLInputElement;
+    contactDetailsInput = document.getElementById('contact-details-input') as HTMLTextAreaElement;
+    imageUploadArea = document.getElementById('image-upload-area') as HTMLDivElement;
+    logoUpload = document.getElementById('logo-upload') as HTMLInputElement;
+    removeLogoBtn = document.getElementById('remove-logo-btn') as HTMLButtonElement;
+    logoPreview = document.getElementById('logo-preview') as HTMLImageElement;
+    uploadPlaceholder = document.getElementById('upload-placeholder') as HTMLDivElement;
+    logoCustomizationSection = document.getElementById('logo-customization') as HTMLDivElement;
+    logoSizeOptions = document.querySelectorAll('.logo-size-option');
+    logoPositionOptions = document.querySelectorAll('.logo-position-option');
+    paletteOptions = document.querySelectorAll('.palette-option');
+    layoutOptions = document.querySelectorAll('.layout-option');
+    backgroundOptions = document.querySelectorAll('.background-option');
+    fontOptions = document.querySelectorAll('.font-option');
+    sizeOptions = document.querySelectorAll('.size-option');
+    textEffectOptions = document.querySelectorAll('.text-effect-option');
+    generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
+    savePrefsBtn = document.getElementById('save-prefs-btn') as HTMLButtonElement;
+    clearPrefsBtn = document.getElementById('clear-prefs-btn') as HTMLButtonElement;
+    prefsFeedback = document.getElementById('prefs-feedback') as HTMLSpanElement;
+    outputPlaceholder = document.getElementById('output-placeholder') as HTMLDivElement;
+    loader = document.getElementById('loader') as HTMLDivElement;
+    loaderText = document.getElementById('loader-text') as HTMLParagraphElement;
+    resultContainer = document.getElementById('result-container') as HTMLDivElement;
+    flyerOutput = document.getElementById('flyer-output') as HTMLImageElement;
+    downloadControls = document.querySelector('.download-controls') as HTMLDivElement;
+    downloadBtn = document.getElementById('download-btn') as HTMLAnchorElement;
+    formatSelect = document.getElementById('format-select') as HTMLSelectElement;
+    errorMessage = document.getElementById('error-message') as HTMLDivElement;
+    cropModal = document.getElementById('crop-modal') as HTMLDivElement;
+    imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
+    applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
+    cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
+
+
+    // Comprehensive check for critical elements
+    const requiredElements = {
+        promptInput, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
+        generateBtn, downloadBtn, savePrefsBtn, clearPrefsBtn, downloadControls, formatSelect,
+        logoPreview, uploadPlaceholder, prefsFeedback, outputPlaceholder, loader, loaderText,
+        resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,
+        cropModal, imageToCrop, applyCropBtn, cancelCropBtn
+    };
+
+    for (const [name, el] of Object.entries(requiredElements)) {
+        if (!el) {
+            console.error(`Initialization failed: Element "${name}" is missing from the DOM.`);
+            document.body.innerHTML = `<p style="color: red; font-family: sans-serif; padding: 2rem;">Error: Application could not start. A required UI element (${name}) is missing.</p>`;
+            return;
+        }
+    }
+    
+    // Now that we know generateBtn exists, we can safely query its inner elements.
+    generateBtnSpan = generateBtn.querySelector('span') as HTMLSpanElement;
+    if (!generateBtnSpan) {
+        console.error("Initialization failed: The 'generate-btn' is missing its inner span element.");
+        // We can let the app continue, but the button text won't update.
+    }
+
+    // Attach all event listeners
+    imageUploadArea.addEventListener('click', (e) => {
+        // Prevent click on logoUpload when remove button is clicked
+        if (e.target !== removeLogoBtn) {
+            logoUpload.click();
+        }
+    });
+    logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
+    removeLogoBtn.addEventListener('click', handleRemoveLogo);
+
+    imageUploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        imageUploadArea.classList.add('drag-over');
+    });
+    imageUploadArea.addEventListener('dragleave', () => {
+        imageUploadArea.classList.remove('drag-over');
+    });
+    imageUploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        imageUploadArea.classList.remove('drag-over');
+        handleLogoSelection(e.dataTransfer?.files ?? null);
+    });
+
+    applyCropBtn.addEventListener('click', handleApplyCrop);
+    cancelCropBtn.addEventListener('click', handleCancelCrop);
+    
+    logoSizeOptions.forEach(option => {
+        option.addEventListener('click', handleLogoSizeSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleLogoSizeSelection(e);
+            }
+        });
+    });
+
+    logoPositionOptions.forEach(option => {
+        option.addEventListener('click', handleLogoPositionSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleLogoPositionSelection(e);
+            }
+        });
+    });
+
+    paletteOptions.forEach(option => {
+        option.addEventListener('click', handlePaletteSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handlePaletteSelection(e);
+            }
+        });
+    });
+
+    layoutOptions.forEach(option => {
+        option.addEventListener('click', handleLayoutSelection);
+    });
+    
+    backgroundOptions.forEach(option => {
+        option.addEventListener('click', handleBackgroundSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleBackgroundSelection(e);
+            }
+        });
+    });
+
+    fontOptions.forEach(option => {
+        option.addEventListener('click', handleFontSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleFontSelection(e);
+            }
+        });
+    });
+
+    sizeOptions.forEach(option => {
+        option.addEventListener('click', handleSizeSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleSizeSelection(e);
+            }
+        });
+    });
+
+    textEffectOptions.forEach(option => {
+        option.addEventListener('click', handleTextEffectSelection);
+        option.addEventListener('keydown', (e) => {
+            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
+                e.preventDefault();
+                handleTextEffectSelection(e);
+            }
+        });
+    });
+
+
+    generateBtn.addEventListener('click', handleGenerateClick);
+    downloadBtn.addEventListener('click', handleDownloadClick);
+    savePrefsBtn.addEventListener('click', handleSavePrefs);
+    clearPrefsBtn.addEventListener('click', handleClearPrefs);
+    
+    handleLoadPrefs();
+}
+
+// Run initialization
+initialize();
+
+export {};
