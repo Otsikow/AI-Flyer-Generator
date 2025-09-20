@@ -23,9 +23,7 @@ let sizeOptions: NodeListOf<HTMLDivElement>;
 let textEffectOptions: NodeListOf<HTMLDivElement>;
 let generateBtn: HTMLButtonElement;
 let generateBtnSpan: HTMLSpanElement;
-let savePrefsBtn: HTMLButtonElement;
 let clearPrefsBtn: HTMLButtonElement;
-let prefsFeedback: HTMLSpanElement;
 let outputPlaceholder: HTMLDivElement;
 let loader: HTMLDivElement;
 let loaderText: HTMLParagraphElement;
@@ -76,6 +74,32 @@ const loadingMessages = [
 ];
 
 /**
+ * Creates a debounced function that delays invoking the provided function
+ * until after `waitFor` milliseconds have elapsed since the last time
+ * the debounced function was invoked. The debounced function also has a
+ * `cancel` method to cancel delayed `func` invocations.
+ */
+function debounce<F extends (...args: any[]) => any>(func: F, waitFor: number) {
+    let timeout: number | null = null;
+
+    const debounced = (...args: Parameters<F>) => {
+        if (timeout !== null) {
+            clearTimeout(timeout);
+        }
+        timeout = window.setTimeout(() => func(...args), waitFor);
+    };
+
+    debounced.cancel = () => {
+        if (timeout !== null) {
+            clearTimeout(timeout);
+            timeout = null;
+        }
+    };
+
+    return debounced;
+}
+
+/**
  * Hides the main loader and stops any message cycling.
  */
 function hideLoading() {
@@ -84,14 +108,6 @@ function hideLoading() {
         clearInterval(loadingInterval);
         loadingInterval = null;
     }
-}
-
-function showPrefsFeedback(message: string) {
-    prefsFeedback.textContent = message;
-    prefsFeedback.classList.add('show');
-    setTimeout(() => {
-        prefsFeedback.classList.remove('show');
-    }, 2000);
 }
 
 // --- UI UPDATE FUNCTIONS ---
@@ -155,11 +171,13 @@ function showError(message: string) {
 
 // --- PREFERENCES FUNCTIONS ---
 
-async function handleSavePrefs() {
+function savePrefs() {
     const prefs: any = {
+        prompt: promptInput.value,
         companyName: companyNameInput.value,
         contactDetails: contactDetailsInput.value,
         palette: selectedPalette,
+        layout: selectedLayout,
         font: selectedFont,
         bgType: selectedBackgroundType,
         bgValue: selectedBackgroundValue,
@@ -171,8 +189,10 @@ async function handleSavePrefs() {
     };
     
     localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
-    showPrefsFeedback('Saved!');
 }
+
+// Create a debounced version of savePrefs for efficient auto-saving.
+const debouncedSavePrefs = debounce(savePrefs, 500);
 
 function handleLoadPrefs() {
     const prefsString = localStorage.getItem(PREFERENCES_KEY);
@@ -180,6 +200,7 @@ function handleLoadPrefs() {
 
     const prefs = JSON.parse(prefsString);
 
+    promptInput.value = prefs.prompt || '';
     companyNameInput.value = prefs.companyName || '';
     contactDetailsInput.value = prefs.contactDetails || '';
 
@@ -188,6 +209,16 @@ function handleLoadPrefs() {
         selectedPalette = prefs.palette;
         paletteOptions.forEach(option => {
             const isSelected = option.getAttribute('data-palette-name') === selectedPalette;
+            option.classList.toggle('selected', isSelected);
+            option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+        });
+    }
+    
+    // Load Layout
+    if (prefs.layout) {
+        selectedLayout = prefs.layout;
+        layoutOptions.forEach(option => {
+            const isSelected = option.getAttribute('data-layout') === selectedLayout;
             option.classList.toggle('selected', isSelected);
             option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
         });
@@ -275,43 +306,61 @@ function handleLoadPrefs() {
 }
 
 function handleClearPrefs() {
+    // Cancel any pending auto-save before clearing
+    debouncedSavePrefs.cancel();
     localStorage.removeItem(PREFERENCES_KEY);
-    showPrefsFeedback('Cleared!');
-    // Optional: reset form to default state
+    
+    // --- Reset all state variables to default ---
+    logoDataUrl = null;
+    selectedPalette = 'default';
+    selectedLayout = 'balanced';
+    selectedBackgroundType = 'none';
+    selectedBackgroundValue = null;
+    selectedFont = 'sans-serif';
+    selectedSize = 'a4-portrait';
+    selectedTextEffects.clear();
+    selectedLogoSize = 'medium';
+    selectedLogoPosition = 'top-right';
+
+    // --- Reset the UI to reflect the default state ---
+    promptInput.value = '';
     companyNameInput.value = '';
     contactDetailsInput.value = '';
     
-    // Reset logo
-    handleRemoveLogo();
-    
-    selectedTextEffects.clear();
-    textEffectOptions.forEach(option => {
-        option.classList.remove('selected');
-        option.setAttribute('aria-checked', 'false');
-    });
+    // Reset logo UI
+    logoPreview.src = '';
+    logoPreview.classList.add('hidden');
+    uploadPlaceholder.classList.remove('hidden');
+    removeLogoBtn.classList.add('hidden');
+    logoCustomizationSection.classList.add('hidden');
+    logoUpload.value = '';
 
-    // Reset palette
-    selectedPalette = 'default';
-    paletteOptions.forEach(option => {
-        const isSelected = option.getAttribute('data-palette-name') === 'default';
-        option.classList.toggle('selected', isSelected);
-        option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
-    });
+    // Reset all selectable options
+    [
+        paletteOptions, layoutOptions, backgroundOptions,
+        fontOptions, sizeOptions, textEffectOptions,
+        logoSizeOptions, logoPositionOptions
+    ].forEach(options => {
+        options.forEach(option => {
+            const el = option as HTMLElement;
+            let isDefault = false;
+            // Check based on the option type what the default is
+            if (el.matches('.palette-option')) isDefault = el.dataset.paletteName === 'default';
+            if (el.matches('.layout-option')) isDefault = el.dataset.layout === 'balanced';
+            if (el.matches('.background-option')) isDefault = el.dataset.bgType === 'none';
+            if (el.matches('.font-option')) isDefault = el.dataset.font === 'sans-serif';
+            if (el.matches('.size-option')) isDefault = el.dataset.size === 'a4-portrait';
+            if (el.matches('.logo-size-option')) isDefault = el.dataset.size === 'medium';
+            if (el.matches('.logo-position-option')) isDefault = el.dataset.position === 'top-right';
+            
+            el.classList.toggle('selected', isDefault);
+            el.setAttribute('aria-checked', isDefault ? 'true' : 'false');
 
-    // Reset logo size
-    selectedLogoSize = 'medium';
-    logoSizeOptions.forEach(option => {
-        const isSelected = option.getAttribute('data-size') === 'medium';
-        option.classList.toggle('selected', isSelected);
-        option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
-    });
-
-    // Reset logo position
-    selectedLogoPosition = 'top-right';
-    logoPositionOptions.forEach(option => {
-        const isSelected = option.getAttribute('data-position') === 'top-right';
-        option.classList.toggle('selected', isSelected);
-        option.setAttribute('aria-checked', isSelected ? 'true' : 'false');
+            if(el.matches('.text-effect-option')) {
+                el.classList.remove('selected');
+                el.setAttribute('aria-checked', 'false');
+            }
+        });
     });
 }
 
@@ -361,6 +410,7 @@ function handleApplyCrop() {
     logoCustomizationSection.classList.remove('hidden');
 
     handleCancelCrop(); // Hide modal and destroy cropper instance
+    debouncedSavePrefs();
 }
 
 function handleCancelCrop() {
@@ -381,6 +431,7 @@ function handleRemoveLogo() {
     if (removeLogoBtn) removeLogoBtn.classList.add('hidden');
     if (logoCustomizationSection) logoCustomizationSection.classList.add('hidden');
     if (logoUpload) logoUpload.value = '';
+    debouncedSavePrefs();
 }
 
 function handleLogoSizeSelection(event: Event) {
@@ -393,6 +444,7 @@ function handleLogoSizeSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
 }
 
 function handleLogoPositionSelection(event: Event) {
@@ -405,6 +457,7 @@ function handleLogoPositionSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
 }
 
 function handlePaletteSelection(event: Event) {
@@ -418,6 +471,7 @@ function handlePaletteSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
 }
 
 function handleLayoutSelection(event: Event) {
@@ -431,6 +485,7 @@ function handleLayoutSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
 }
 
 function handleBackgroundSelection(event: Event) {
@@ -445,6 +500,7 @@ function handleBackgroundSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
 }
 
 function handleFontSelection(event: Event) {
@@ -458,6 +514,7 @@ function handleFontSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
 }
 
 function handleSizeSelection(event: Event) {
@@ -471,6 +528,7 @@ function handleSizeSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
 }
 
 function handleTextEffectSelection(event: Event) {
@@ -487,6 +545,7 @@ function handleTextEffectSelection(event: Event) {
     } else {
         selectedTextEffects.delete(effect);
     }
+    debouncedSavePrefs();
 }
 
 /**
@@ -808,9 +867,7 @@ function initialize() {
     sizeOptions = document.querySelectorAll('.size-option');
     textEffectOptions = document.querySelectorAll('.text-effect-option');
     generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
-    savePrefsBtn = document.getElementById('save-prefs-btn') as HTMLButtonElement;
     clearPrefsBtn = document.getElementById('clear-prefs-btn') as HTMLButtonElement;
-    prefsFeedback = document.getElementById('prefs-feedback') as HTMLSpanElement;
     outputPlaceholder = document.getElementById('output-placeholder') as HTMLDivElement;
     loader = document.getElementById('loader') as HTMLDivElement;
     loaderText = document.getElementById('loader-text') as HTMLParagraphElement;
@@ -829,8 +886,8 @@ function initialize() {
     // Comprehensive check for critical elements
     const requiredElements = {
         promptInput, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
-        generateBtn, downloadBtn, savePrefsBtn, clearPrefsBtn, downloadControls, formatSelect,
-        logoPreview, uploadPlaceholder, prefsFeedback, outputPlaceholder, loader, loaderText,
+        generateBtn, downloadBtn, clearPrefsBtn, downloadControls, formatSelect,
+        logoPreview, uploadPlaceholder, outputPlaceholder, loader, loaderText,
         resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,
         cropModal, imageToCrop, applyCropBtn, cancelCropBtn
     };
@@ -950,10 +1007,13 @@ function initialize() {
         });
     });
 
+    // Add listeners for auto-saving text inputs
+    promptInput.addEventListener('input', debouncedSavePrefs);
+    companyNameInput.addEventListener('input', debouncedSavePrefs);
+    contactDetailsInput.addEventListener('input', debouncedSavePrefs);
 
     generateBtn.addEventListener('click', handleGenerateClick);
     downloadBtn.addEventListener('click', handleDownloadClick);
-    savePrefsBtn.addEventListener('click', handleSavePrefs);
     clearPrefsBtn.addEventListener('click', handleClearPrefs);
     
     handleLoadPrefs();

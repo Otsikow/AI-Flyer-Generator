@@ -93,18 +93,6 @@ body {
 .pref-buttons {
   display: flex;
   gap: 0.5rem;
-  margin-right: 1rem;
-}
-
-.prefs-feedback {
-  font-size: 0.9rem;
-  color: var(--primary-color);
-  opacity: 0;
-  transition: opacity 0.3s ease-in-out;
-}
-
-.prefs-feedback.show {
-  opacity: 1;
 }
 
 .input-panel h2 {
