@@ -646,12 +646,15 @@ async function handleGenerateClick() {
 
     const prompt = promptInput?.value.trim();
     if (!prompt) {
-        showError('Please enter a description for your flyer.');
+        showError('Please enter a description for your flyer or logo.');
         return;
     }
+    
+    const isLogoRequest = selectedSize === 'logo';
 
-    if (!logoDataUrl) {
-        showError('Please upload and apply a logo.');
+    // A logo is required for flyers, but not when generating a logo.
+    if (!isLogoRequest && !logoDataUrl) {
+        showError('Please upload and apply a logo to generate a flyer.');
         return;
     }
 
@@ -666,7 +669,7 @@ async function handleGenerateClick() {
         const companyName = companyNameInput?.value.trim();
         const contactDetails = contactDetailsInput?.value.trim();
 
-        let paletteInstruction = `Use an appropriate color palette based on the flyer's concept.`;
+        let paletteInstruction = `Use an appropriate color palette based on the concept.`;
         if (selectedPalette && selectedPalette !== 'default') {
             const selectedOption = document.querySelector(`.palette-option[data-palette-name="${selectedPalette}"]`);
             const paletteColors = selectedOption?.getAttribute('data-palette-colors');
@@ -675,97 +678,85 @@ async function handleGenerateClick() {
             }
         }
 
-        let layoutInstruction = '';
-        switch (selectedLayout) {
-            case 'text-focus':
-                layoutInstruction = 'A text-focused layout where typography is the dominant visual element.';
-                break;
-            case 'image-focus':
-                layoutInstruction = 'An image-focused layout where visuals are central. Text should complement the imagery.';
-                break;
-            case 'balanced':
-            default:
-                layoutInstruction = 'A balanced layout, giving equal visual weight to the logo, text, and any imagery.';
-                break;
-        }
-
-        let backgroundInstruction = `Use a background that complements the overall design. A transparent background is acceptable if no specific background is requested.`;
-        if (selectedBackgroundType === 'color' && selectedBackgroundValue) {
-            backgroundInstruction = `Use a solid background color of ${selectedBackgroundValue}. If a palette is selected, this color may be adjusted to fit the palette.`;
-        }
-
         let fontInstruction = '';
         switch (selectedFont) {
-            case 'serif':
-                fontInstruction = 'a classic and elegant Serif font style.';
-                break;
-            case 'script':
-                fontInstruction = 'a flowing and decorative Script font style.';
-                break;
-            case 'modern':
-                fontInstruction = 'a clean, geometric, and Modern font style.';
-                break;
-            case 'classic':
-                fontInstruction = 'a timeless and traditional Classic font style.';
-                break;
-            case 'futuristic':
-                fontInstruction = 'a sleek, minimalist, and Futuristic font style.';
-                break;
-            case 'sans-serif':
-            default:
-                fontInstruction = 'a clean and highly readable Sans-serif font style.';
-                break;
+            case 'serif': fontInstruction = 'a classic and elegant Serif font style.'; break;
+            case 'script': fontInstruction = 'a flowing and decorative Script font style.'; break;
+            case 'modern': fontInstruction = 'a clean, geometric, and Modern font style.'; break;
+            case 'classic': fontInstruction = 'a timeless and traditional Classic font style.'; break;
+            case 'futuristic': fontInstruction = 'a sleek, minimalist, and Futuristic font style.'; break;
+            case 'sans-serif': default: fontInstruction = 'a clean and highly readable Sans-serif font style.'; break;
         }
 
         let sizeInstruction = '';
         switch (selectedSize) {
-            case 'us-letter':
-                sizeInstruction = 'US Letter portrait aspect ratio (8.5:11).';
-                break;
-            case 'square-post':
-                sizeInstruction = 'perfect square aspect ratio (1:1).';
-                break;
-            case 'social-banner':
-                sizeInstruction = 'landscape 16:9 aspect ratio.';
-                break;
-            case 'a4-portrait':
-            default:
-                sizeInstruction = 'standard A4 portrait aspect ratio.';
-                break;
+            case 'us-letter': sizeInstruction = 'US Letter portrait aspect ratio (8.5:11).'; break;
+            case 'us-letter-landscape': sizeInstruction = 'US Letter landscape aspect ratio (11:8.5).'; break;
+            case 'square-post': sizeInstruction = 'perfect square aspect ratio (1:1).'; break;
+            case 'social-banner': sizeInstruction = 'landscape 16:9 aspect ratio.'; break;
+            case 'a4-landscape': sizeInstruction = 'standard A4 landscape aspect ratio.'; break;
+            case 'logo': sizeInstruction = 'perfect square aspect ratio (1:1), designed as a high-resolution logo.'; break;
+            case 'a4-portrait': default: sizeInstruction = 'standard A4 portrait aspect ratio.'; break;
         }
         
         let textEffectInstruction = 'None';
         if (selectedTextEffects.size > 0) {
             textEffectInstruction = Array.from(selectedTextEffects).join(', ');
         }
-
-        let logoInstruction = `Integrate the provided logo naturally.`;
-        if (selectedLogoSize) {
-            logoInstruction += ` The logo's size should be ${selectedLogoSize} relative to the flyer.`;
-        }
-        if (selectedLogoPosition) {
-            const positionText = selectedLogoPosition.replace('-', ' ');
-            logoInstruction += ` Place it in the ${positionText} area.`;
-        }
-
-        // --- Build structured text content section ---
-        const textElements = [];
-        if (companyName) {
-            textElements.push(`- **Company Name:** "${companyName}" (This must be rendered exactly as written and featured prominently).`);
-        }
-        if (contactDetails) {
-            textElements.push(`- **Contact Details:** "${contactDetails}" (This must be rendered exactly as written and be perfectly legible).`);
-        }
-        const textContentInstruction = textElements.length > 0
-            ? `
-## Text Content to Include
-**Crucial:** Render all text below with 100% accuracy—no extra words, no misspellings. The text must be sharp and easy to read.
-${textElements.join('\n')}
-`
-            : '';
-
+        
         // --- Assemble the final, structured prompt ---
-        const fullPrompt = `
+        let fullPrompt = '';
+
+        if (isLogoRequest) {
+            const textContent = companyName ? `- **Primary Text/Company Name:** "${companyName}" (This must be the central text, rendered accurately).` : '';
+            fullPrompt = `
+# INSTRUCTION: CREATE A PROFESSIONAL LOGO
+
+## Primary Goal
+Generate a professional, visually appealing logo. The final image must be exceptionally sharp with crisp graphics. The design should be clean, memorable, and suitable for branding.
+
+## Core Logo Concept
+Based on this user description: "${prompt}"
+
+## Text to Include
+${textContent}
+
+## Design Specifications
+- **Color Palette:** ${paletteInstruction}
+- **Typography:** Use ${fontInstruction} and these effects if they fit the design: ${textEffectInstruction}.
+- **Style:** The overall layout style should be "${selectedLayout}".
+- **Dimensions:** The final image must have a ${sizeInstruction}.
+- **Background:** The background should be clean and simple (e.g., solid white, transparent, or a very subtle gradient) to ensure the logo is the main focus.
+`;
+        } else {
+            // This is a flyer request, use the detailed flyer prompt
+            let layoutInstruction = '';
+            switch (selectedLayout) {
+                case 'text-focus': layoutInstruction = 'A text-focused layout where typography is the dominant visual element.'; break;
+                case 'image-focus': layoutInstruction = 'An image-focused layout where visuals are central. Text should complement the imagery.'; break;
+                case 'balanced': default: layoutInstruction = 'A balanced layout, giving equal visual weight to the logo, text, and any imagery.'; break;
+            }
+
+            let backgroundInstruction = `Use a background that complements the overall design. A transparent background is acceptable if no specific background is requested.`;
+            if (selectedBackgroundType === 'color' && selectedBackgroundValue) {
+                backgroundInstruction = `Use a solid background color of ${selectedBackgroundValue}. If a palette is selected, this color may be adjusted to fit the palette.`;
+            }
+            
+            let logoInstruction = `Integrate the provided logo naturally.`;
+            if (selectedLogoSize) { logoInstruction += ` The logo's size should be ${selectedLogoSize} relative to the flyer.`; }
+            if (selectedLogoPosition) {
+                const positionText = selectedLogoPosition.replace('-', ' ');
+                logoInstruction += ` Place it in the ${positionText} area.`;
+            }
+            
+            const textElements = [];
+            if (companyName) { textElements.push(`- **Company Name:** "${companyName}" (This must be rendered exactly as written and featured prominently).`); }
+            if (contactDetails) { textElements.push(`- **Contact Details:** "${contactDetails}" (This must be rendered exactly as written and be perfectly legible).`); }
+            const textContentInstruction = textElements.length > 0
+                ? `## Text Content to Include\n**Crucial:** Render all text below with 100% accuracy—no extra words, no misspellings. The text must be sharp and easy to read.\n${textElements.join('\n')}`
+                : '';
+
+            fullPrompt = `
 # INSTRUCTION: CREATE A HIGH-QUALITY PRINT FLYER
 
 ## Primary Goal
@@ -783,15 +774,18 @@ ${textContentInstruction}
 - **Dimensions:** The final image must have a ${sizeInstruction}
 - **Logo Integration:** ${logoInstruction}
 `;
+        }
         
-        // Add logo (always PNG after cropping)
-        const logoBase64 = logoDataUrl.split(',')[1];
-        parts.push({
-            inlineData: {
-                data: logoBase64,
-                mimeType: 'image/png',
-            },
-        });
+        // Add uploaded logo for flyer requests, but not for logo generation requests.
+        if (!isLogoRequest && logoDataUrl) {
+            const logoBase64 = logoDataUrl.split(',')[1];
+            parts.push({
+                inlineData: {
+                    data: logoBase64,
+                    mimeType: 'image/png',
+                },
+            });
+        }
 
         // Add prompt
         parts.push({ text: fullPrompt.trim() });
@@ -819,7 +813,7 @@ ${textContentInstruction}
         }
         
         if (!foundImage) {
-             showError("The AI couldn't generate a flyer image. Try refining your prompt.");
+             showError("The AI couldn't generate an image. Try refining your prompt.");
         }
 
     } catch (error) {

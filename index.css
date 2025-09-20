@@ -1,3 +1,5 @@
+
+
 :root {
   --font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   
@@ -20,6 +22,7 @@ body[data-theme='light'] {
   --selected-bg-color: rgba(141, 42, 73, 0.1);
   --primary-shadow-color: rgba(141, 42, 73, 0.3);
   --btn-text-color: #ffffff;
+  --focus-ring-color: rgba(141, 42, 73, 0.35);
 }
 
 /* --- Dark Theme --- */
@@ -37,6 +40,7 @@ body[data-theme='dark'] {
   --selected-bg-color: rgba(247, 183, 51, 0.15);
   --primary-shadow-color: rgba(247, 183, 51, 0.2);
   --btn-text-color: #1a202c;
+  --focus-ring-color: rgba(247, 183, 51, 0.35);
 }
 
 * {
@@ -222,7 +226,7 @@ input[id="company-name-input"]:focus,
 textarea[id="contact-details-input"]:focus {
   outline: none;
   border-color: var(--primary-color);
-  box-shadow: 0 0 0 3px var(--selected-bg-color);
+  box-shadow: 0 0 0 3px var(--focus-ring-color);
 }
 
 .btn-icon {
@@ -481,7 +485,7 @@ textarea[id="contact-details-input"]:focus {
 
 .size-options-container {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
