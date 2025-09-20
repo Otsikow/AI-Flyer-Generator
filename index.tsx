@@ -4,6 +4,7 @@ import { GoogleGenAI, Modality } from "@google/genai";
 declare var Cropper: any;
 
 // --- DOM ELEMENT VARIABLES (to be assigned in initialize) ---
+let descriptionHeader: HTMLHeadingElement;
 let promptInput: HTMLTextAreaElement;
 let enhancePromptBtn: HTMLButtonElement;
 let companyNameInput: HTMLInputElement;
@@ -69,7 +70,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const loadingMessages = [
     'Warming up the AI design engine...',
-    'Sketching initial flyer concepts...',
+    'Sketching initial concepts...',
     'Mixing the perfect color palette...',
     'Choosing a stunning font pairing...',
     'Arranging the layout for impact...',
@@ -116,6 +117,46 @@ function hideLoading() {
 
 // --- UI UPDATE FUNCTIONS ---
 
+/**
+ * Updates context-sensitive UI text based on the selected design size.
+ * @param size The currently selected size (e.g., 'logo', 'social-banner').
+ */
+function updateDynamicText(size: string) {
+    let designType = 'Flyer';
+    let placeholder = 'e.g., A modern tech conference flyer with a blue and white color scheme...';
+    if (size === 'logo') {
+        designType = 'Logo';
+        placeholder = 'e.g., A minimalist logo for a coffee shop, featuring a stylized coffee bean...';
+    } else if (size === 'social-banner') {
+        designType = 'Banner';
+        placeholder = 'e.g., A vibrant banner for a summer sale social media campaign...';
+    }
+
+    // Update button text
+    if (generateBtnSpan) {
+        generateBtnSpan.textContent = `Generate ${designType}`;
+    }
+
+    // Update placeholder text in the prompt input
+    if (promptInput) {
+        promptInput.placeholder = placeholder;
+    }
+
+    // Update the section title
+    if (descriptionHeader) {
+        descriptionHeader.textContent = `1. Describe Your ${designType}`;
+    }
+
+    // Update output placeholder
+    const outputPlaceholderHeader = outputPlaceholder?.querySelector('h3');
+    const outputPlaceholderPara = outputPlaceholder?.querySelector('p');
+    if (outputPlaceholderHeader && outputPlaceholderPara) {
+        outputPlaceholderHeader.textContent = `Your ${designType.toLowerCase()} will appear here`;
+        outputPlaceholderPara.textContent = `Fill out the details on the left and click "Generate ${designType}" to get started.`;
+    }
+}
+
+
 function setGenerating(generating: boolean) {
     isGenerating = generating;
     generateBtn.disabled = generating;
@@ -124,7 +165,8 @@ function setGenerating(generating: boolean) {
         if (generateBtnSpan) generateBtnSpan.textContent = 'Generating...';
     } else {
         generateBtn.classList.remove('loading');
-        if (generateBtnSpan) generateBtnSpan.textContent = 'Generate Flyer';
+        // Restore the correct, context-aware text
+        updateDynamicText(selectedSize);
     }
 }
 
@@ -223,7 +265,11 @@ const debouncedSavePrefs = debounce(savePrefs, 500);
 
 function handleLoadPrefs() {
     const prefsString = localStorage.getItem(PREFERENCES_KEY);
-    if (!prefsString) return;
+    if (!prefsString) {
+        // Even if no prefs, update text for default state
+        updateDynamicText(selectedSize);
+        return;
+    };
 
     const prefs = JSON.parse(prefsString);
 
@@ -333,6 +379,9 @@ function handleLoadPrefs() {
         removeLogoBtn.classList.remove('hidden');
         logoCustomizationSection.classList.remove('hidden');
     }
+
+    // Update all dynamic text fields based on loaded preferences
+    updateDynamicText(selectedSize);
 }
 
 function handleClearPrefs() {
@@ -393,6 +442,9 @@ function handleClearPrefs() {
             }
         });
     });
+
+    // Update all dynamic text fields to reflect the default state
+    updateDynamicText(selectedSize);
 }
 
 // --- EVENT HANDLERS ---
@@ -593,6 +645,8 @@ function handleSizeSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+
+    updateDynamicText(selectedSize);
     debouncedSavePrefs();
 }
 
@@ -617,7 +671,7 @@ function handleTextEffectSelection(event: Event) {
  * Parses an error from the AI API and displays a user-friendly message.
  */
 function parseAndShowError(error: unknown) {
-    console.error("Flyer Generation Error:", error);
+    console.error("Design Generation Error:", error);
 
     let userMessage = "An unexpected error occurred. Please check the console for details and try again.";
 
@@ -646,7 +700,7 @@ async function handleGenerateClick() {
 
     const prompt = promptInput?.value.trim();
     if (!prompt) {
-        showError('Please enter a description for your flyer or logo.');
+        showError('Please enter a description for your design.');
         return;
     }
     
@@ -833,10 +887,13 @@ async function handleDownloadClick(event: MouseEvent) {
 
     const format = formatSelect.value;
     const dataUrl = flyerOutput.src;
-    const fileName = `flyer.${format}`;
+    
+    // Determine the type of design for the filename
+    const designType = selectedSize === 'logo' ? 'logo' : selectedSize.includes('banner') ? 'banner' : 'flyer';
+    const fileName = `${designType}-design.${format}`;
 
     if (!dataUrl || !dataUrl.startsWith('data:image')) {
-        showError("No flyer image to download.");
+        showError("No image to download.");
         return;
     }
     
@@ -908,6 +965,7 @@ async function handleDownloadClick(event: MouseEvent) {
 // --- INITIALIZATION ---
 function initialize() {
     // Assign all DOM elements
+    descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
     enhancePromptBtn = document.getElementById('enhance-prompt-btn') as HTMLButtonElement;
     companyNameInput = document.getElementById('company-name-input') as HTMLInputElement;
@@ -946,7 +1004,7 @@ function initialize() {
 
     // Comprehensive check for critical elements
     const requiredElements = {
-        promptInput, enhancePromptBtn, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
+        descriptionHeader, promptInput, enhancePromptBtn, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
         generateBtn, downloadBtn, clearPrefsBtn, downloadControls, formatSelect,
         logoPreview, uploadPlaceholder, outputPlaceholder, loader, loaderText,
         resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,

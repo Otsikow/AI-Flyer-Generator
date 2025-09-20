@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3G Flyer Generator</title>
+    <title>3G Design Generator</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M49.9992 8.33301C42.4435 8.33301 35.111 11.2289 29.7042 16.3216C24.2974 21.4144 21.0515 28.3186 20.4442 35.633H33.3325V44.4997H19.5358C19.1775 47.243 19.1775 50.0897 19.5358 52.833H33.3325V61.6997H20.4442C21.0515 69.0142 24.2974 75.9183 29.7042 81.0111C35.111 86.1038 42.4435 88.9997 49.9992 88.9997C57.5548 88.9997 64.8873 86.1038 70.2942 81.0111C75.701 75.9183 78.9468 69.0142 79.5542 61.6997H66.6658V52.833H80.4625C80.8208 50.0897 80.8208 47.243 80.4625 44.4997H66.6658V35.633H79.5542C78.9468 28.3186 75.701 21.4144 70.2942 16.3216C64.8873 11.2289 57.5548 8.33301 49.9992 8.33301Z' fill='%238D2A49'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="index.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.2/cropper.min.css" />
@@ -25,12 +25,12 @@
                 <path d="M49.9992 8.33301C42.4435 8.33301 35.111 11.2289 29.7042 16.3216C24.2974 21.4144 21.0515 28.3186 20.4442 35.633H33.3325V44.4997H19.5358C19.1775 47.243 19.1775 50.0897 19.5358 52.833H33.3325V61.6997H20.4442C21.0515 69.0142 24.2974 75.9183 29.7042 81.0111C35.111 86.1038 42.4435 88.9997 49.9992 88.9997C57.5548 88.9997 64.8873 86.1038 70.2942 81.0111C75.701 75.9183 78.9468 69.0142 79.5542 61.6997H66.6658V52.833H80.4625C80.8208 50.0897 80.8208 47.243 80.4625 44.4997H66.6658V35.633H79.5542C78.9468 28.3186 75.701 21.4144 70.2942 16.3216C64.8873 11.2289 57.5548 8.33301 49.9992 8.33301Z" fill="currentColor"/>
             </svg>
             <div class="header-content">
-                <h1>3G Flyer Generator</h1>
-                <p>AI-powered flyer design at the speed of thought.</p>
+                <h1>3G Design Generator</h1>
+                <p>Generate stunning flyers, logos, and banners with AI.</p>
             </div>
             <button id="theme-switcher" class="theme-switcher" aria-label="Toggle light/dark theme">
-                <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-                <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
             </button>
         </header>
 
@@ -43,7 +43,7 @@
                     </div>
                 </div>
 
-                <h2>1. Describe Your Flyer</h2>
+                <h2 id="description-header">1. Describe Your Design</h2>
                 <div class="input-container">
                     <textarea id="prompt-input" rows="4" placeholder="e.g., A modern tech conference flyer with a blue and white color scheme..."></textarea>
                     <button id="enhance-prompt-btn" class="btn-icon" aria-label="Enhance with AI" title="Enhance with AI" disabled>
@@ -224,15 +224,15 @@
 
                 <button id="generate-btn" class="btn">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.5 2.5 0 0 0 3.5 0L21 12z"/></svg>
-                    <span>Generate Flyer</span>
+                    <span>Generate Design</span>
                 </button>
             </section>
 
             <section class="output-panel">
                 <div id="output-placeholder">
                     <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.se's prompt 2.5 0 0 0 3.5 0L21 12z"/></svg>
-                    <h3>Your flyer will appear here</h3>
-                    <p>Fill out the details on the left and click "Generate Flyer" to get started.</p>
+                    <h3>Your design will appear here</h3>
+                    <p>Fill out the details on the left and click "Generate" to get started.</p>
                 </div>
 
                 <div id="loader" class="hidden">
@@ -241,7 +241,7 @@
                 </div>
 
                 <div id="result-container" class="hidden">
-                    <img id="flyer-output" alt="Generated flyer">
+                    <img id="flyer-output" alt="Generated design">
                     <div class="download-controls hidden">
                          <select id="format-select" class="format-select">
                             <option value="png">PNG</option>
