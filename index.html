@@ -34,225 +34,336 @@
             </button>
         </header>
 
-        <main class="generator-container">
-            <section class="input-panel">
-                <div class="preferences-bar">
-                    <h3>Preferences</h3>
-                    <div class="pref-buttons">
-                        <button id="clear-prefs-btn" class="btn btn-secondary">Clear</button>
-                    </div>
-                </div>
+        <nav class="app-tabs">
+            <button id="tab-design-generator" class="tab-btn active" role="tab" aria-selected="true">Design Generator</button>
+            <button id="tab-image-studio" class="tab-btn" role="tab" aria-selected="false">Image Studio</button>
+        </nav>
 
-                <h2 id="description-header">1. Describe Your Design</h2>
-                <div class="input-container">
-                    <textarea id="prompt-input" rows="4" placeholder="e.g., A modern tech conference flyer with a blue and white color scheme..."></textarea>
-                    <button id="enhance-prompt-btn" class="btn-icon" aria-label="Enhance with AI" title="Enhance with AI" disabled>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L9.5 9.5 3 12l6.5 2.5L12 21l2.5-6.5L21 12l-6.5-2.5L12 3z"/></svg>
-                    </button>
-                </div>
-
-                <h2>2. Company Name</h2>
-                <input type="text" id="company-name-input" placeholder="e.g., TaskHaven">
-
-                <h2>3. Contact Details</h2>
-                <textarea id="contact-details-input" rows="3" placeholder="e.g., www.taskhaven.app, (555) 123-4567"></textarea>
-
-                <h2>4. Upload Your Logo</h2>
-                <div id="image-upload-area" role="button" aria-label="Upload your logo" tabindex="0">
-                    <button id="remove-logo-btn" class="hidden" aria-label="Remove logo">&times;</button>
-                    <input type="file" id="logo-upload" accept="image/*" class="hidden">
-                    <img id="logo-preview" class="hidden" alt="Uploaded logo preview">
-                    <div id="upload-placeholder">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                        <p>Click to upload or drag & drop</p>
-                        <span>SVG, PNG, JPG</span>
-                    </div>
-                </div>
-
-                <div id="logo-customization" class="hidden">
-                    <h3 class="customization-subheader">Logo Size</h3>
-                    <div class="logo-size-options-container" role="radiogroup">
-                        <div class="logo-size-option" data-size="small" role="radio" aria-checked="false" tabindex="0"><span>Small</span></div>
-                        <div class="logo-size-option selected" data-size="medium" role="radio" aria-checked="true" tabindex="0"><span>Medium</span></div>
-                        <div class="logo-size-option" data-size="large" role="radio" aria-checked="false" tabindex="0"><span>Large</span></div>
-                    </div>
-                    
-                    <h3 class="customization-subheader">Logo Position</h3>
-                    <div class="logo-position-options-container" role="radiogroup">
-                        <div class="logo-position-option" data-position="top-left" role="radio" aria-checked="false" tabindex="0" aria-label="Top Left"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option" data-position="top-center" role="radio" aria-checked="false" tabindex="0" aria-label="Top Center"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option selected" data-position="top-right" role="radio" aria-checked="true" tabindex="0" aria-label="Top Right"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option" data-position="middle-left" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Left"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option" data-position="middle-center" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Center"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option" data-position="middle-right" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Right"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option" data-position="bottom-left" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Left"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option" data-position="bottom-center" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Center"><div class="position-indicator"></div></div>
-                        <div class="logo-position-option" data-position="bottom-right" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Right"><div class="position-indicator"></div></div>
-                    </div>
-                </div>
-                
-                <h2>5. Color & Background</h2>
-                 <h3 class="customization-subheader">Palettes</h3>
-                <div class="palette-options-container" role="radiogroup" aria-labelledby="palette-heading">
-                    <div class="palette-option selected" data-palette-name="default" role="radio" aria-checked="true" tabindex="0">
-                        <span>Default</span>
-                    </div>
-                    <div class="palette-option" data-palette-name="Spring" data-palette-colors="#a8d8ea, #d4a5a5, #ffc1a6, #a2b29f, #f7cac9" role="radio" aria-checked="false" tabindex="0">
-                        <div class="palette-swatches">
-                            <div class="swatch" style="background-color: #a8d8ea;"></div>
-                            <div class="swatch" style="background-color: #d4a5a5;"></div>
-                            <div class="swatch" style="background-color: #ffc1a6;"></div>
-                            <div class="swatch" style="background-color: #a2b29f;"></div>
-                            <div class="swatch" style="background-color: #f7cac9;"></div>
+        <main>
+            <div id="design-generator-page" class="tab-content active">
+                <div class="generator-container">
+                    <section class="input-panel">
+                        <div class="preferences-bar">
+                            <h3>Preferences</h3>
+                            <div class="pref-buttons">
+                                <button id="clear-prefs-btn" class="btn btn-secondary">Clear</button>
+                            </div>
                         </div>
-                        <span>Spring</span>
-                    </div>
-                    <div class="palette-option" data-palette-name="Oceanic" data-palette-colors="#003b46, #07575b, #66a5ad, #c4dfe6, #ffffff" role="radio" aria-checked="false" tabindex="0">
-                        <div class="palette-swatches">
-                            <div class="swatch" style="background-color: #003b46;"></div>
-                            <div class="swatch" style="background-color: #07575b;"></div>
-                            <div class="swatch" style="background-color: #66a5ad;"></div>
-                            <div class="swatch" style="background-color: #c4dfe6;"></div>
-                            <div class="swatch" style="background-color: #ffffff;"></div>
+
+                        <h2 id="description-header">1. Describe Your Design</h2>
+                        <div class="input-container">
+                            <textarea id="prompt-input" rows="4" placeholder="e.g., A modern tech conference flyer with a blue and white color scheme..."></textarea>
+                            <button id="enhance-prompt-btn" class="btn-icon" aria-label="Enhance with AI" title="Enhance with AI" disabled>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L9.5 9.5 3 12l6.5 2.5L12 21l2.5-6.5L21 12l-6.5-2.5L12 3z"/></svg>
+                            </button>
                         </div>
-                        <span>Oceanic</span>
-                    </div>
-                    <div class="palette-option" data-palette-name="Monochrome" data-palette-colors="#1c1c1c, #3d3d3d, #6b6b6b, #aaaaaa, #e0e0e0" role="radio" aria-checked="false" tabindex="0">
-                        <div class="palette-swatches">
-                            <div class="swatch" style="background-color: #1c1c1c;"></div>
-                            <div class="swatch" style="background-color: #3d3d3d;"></div>
-                            <div class="swatch" style="background-color: #6b6b6b;"></div>
-                            <div class="swatch" style="background-color: #aaaaaa;"></div>
-                            <div class="swatch" style="background-color: #e0e0e0;"></div>
+
+                        <h2>2. Company Name</h2>
+                        <input type="text" id="company-name-input" placeholder="e.g., TaskHaven">
+
+                        <h2>3. Contact Details</h2>
+                        <textarea id="contact-details-input" rows="3" placeholder="e.g., www.taskhaven.app, (555) 123-4567"></textarea>
+
+                        <h2>4. Upload Your Logo</h2>
+                        <div id="image-upload-area" role="button" aria-label="Upload your logo" tabindex="0">
+                            <button id="remove-logo-btn" class="hidden" aria-label="Remove logo">&times;</button>
+                            <input type="file" id="logo-upload" accept="image/*" class="hidden">
+                            <img id="logo-preview" class="hidden" alt="Uploaded logo preview">
+                            <div id="upload-placeholder">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                <p>Click to upload or drag & drop</p>
+                                <span>SVG, PNG, JPG</span>
+                            </div>
                         </div>
-                        <span>Monochrome</span>
-                    </div>
-                     <div class="palette-option" data-palette-name="Sunset" data-palette-colors="#f67280, #c06c84, #6c5b7b, #355c7d, #f8b195" role="radio" aria-checked="false" tabindex="0">
-                        <div class="palette-swatches">
-                            <div class="swatch" style="background-color: #f67280;"></div>
-                            <div class="swatch" style="background-color: #c06c84;"></div>
-                            <div class="swatch" style="background-color: #6c5b7b;"></div>
-                            <div class="swatch" style="background-color: #355c7d;"></div>
-                            <div class="swatch" style="background-color: #f8b195;"></div>
+
+                        <div id="logo-customization" class="hidden">
+                            <h3 class="customization-subheader">Logo Size</h3>
+                            <div class="logo-size-options-container" role="radiogroup">
+                                <div class="logo-size-option" data-size="small" role="radio" aria-checked="false" tabindex="0"><span>Small</span></div>
+                                <div class="logo-size-option selected" data-size="medium" role="radio" aria-checked="true" tabindex="0"><span>Medium</span></div>
+                                <div class="logo-size-option" data-size="large" role="radio" aria-checked="false" tabindex="0"><span>Large</span></div>
+                            </div>
+                            
+                            <h3 class="customization-subheader">Logo Position</h3>
+                            <div class="logo-position-options-container" role="radiogroup">
+                                <div class="logo-position-option" data-position="top-left" role="radio" aria-checked="false" tabindex="0" aria-label="Top Left"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option" data-position="top-center" role="radio" aria-checked="false" tabindex="0" aria-label="Top Center"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option selected" data-position="top-right" role="radio" aria-checked="true" tabindex="0" aria-label="Top Right"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option" data-position="middle-left" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Left"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option" data-position="middle-center" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Center"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option" data-position="middle-right" role="radio" aria-checked="false" tabindex="0" aria-label="Middle Right"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option" data-position="bottom-left" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Left"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option" data-position="bottom-center" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Center"><div class="position-indicator"></div></div>
+                                <div class="logo-position-option" data-position="bottom-right" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Right"><div class="position-indicator"></div></div>
+                            </div>
                         </div>
-                        <span>Sunset</span>
-                    </div>
-                     <div class="palette-option" data-palette-name="Vibrant" data-palette-colors="#00b8a9, #f6416c, #ffde7d, #247ba0, #ffffff" role="radio" aria-checked="false" tabindex="0">
-                        <div class="palette-swatches">
-                            <div class="swatch" style="background-color: #00b8a9;"></div>
-                            <div class="swatch" style="background-color: #f6416c;"></div>
-                            <div class="swatch" style="background-color: #ffde7d;"></div>
-                            <div class="swatch" style="background-color: #247ba0;"></div>
-                            <div class="swatch" style="background-color: #ffffff;"></div>
+                        
+                        <h2>5. Color & Background</h2>
+                         <h3 class="customization-subheader">Palettes</h3>
+                        <div class="palette-options-container" role="radiogroup" aria-labelledby="palette-heading">
+                            <div class="palette-option selected" data-palette-name="default" role="radio" aria-checked="true" tabindex="0">
+                                <span>Default</span>
+                            </div>
+                            <div class="palette-option" data-palette-name="Spring" data-palette-colors="#a8d8ea, #d4a5a5, #ffc1a6, #a2b29f, #f7cac9" role="radio" aria-checked="false" tabindex="0">
+                                <div class="palette-swatches">
+                                    <div class="swatch" style="background-color: #a8d8ea;"></div>
+                                    <div class="swatch" style="background-color: #d4a5a5;"></div>
+                                    <div class="swatch" style="background-color: #ffc1a6;"></div>
+                                    <div class="swatch" style="background-color: #a2b29f;"></div>
+                                    <div class="swatch" style="background-color: #f7cac9;"></div>
+                                </div>
+                                <span>Spring</span>
+                            </div>
+                            <div class="palette-option" data-palette-name="Oceanic" data-palette-colors="#003b46, #07575b, #66a5ad, #c4dfe6, #ffffff" role="radio" aria-checked="false" tabindex="0">
+                                <div class="palette-swatches">
+                                    <div class="swatch" style="background-color: #003b46;"></div>
+                                    <div class="swatch" style="background-color: #07575b;"></div>
+                                    <div class="swatch" style="background-color: #66a5ad;"></div>
+                                    <div class="swatch" style="background-color: #c4dfe6;"></div>
+                                    <div class="swatch" style="background-color: #ffffff;"></div>
+                                </div>
+                                <span>Oceanic</span>
+                            </div>
+                            <div class="palette-option" data-palette-name="Monochrome" data-palette-colors="#1c1c1c, #3d3d3d, #6b6b6b, #aaaaaa, #e0e0e0" role="radio" aria-checked="false" tabindex="0">
+                                <div class="palette-swatches">
+                                    <div class="swatch" style="background-color: #1c1c1c;"></div>
+                                    <div class="swatch" style="background-color: #3d3d3d;"></div>
+                                    <div class="swatch" style="background-color: #6b6b6b;"></div>
+                                    <div class="swatch" style="background-color: #aaaaaa;"></div>
+                                    <div class="swatch" style="background-color: #e0e0e0;"></div>
+                                </div>
+                                <span>Monochrome</span>
+                            </div>
+                             <div class="palette-option" data-palette-name="Sunset" data-palette-colors="#f67280, #c06c84, #6c5b7b, #355c7d, #f8b195" role="radio" aria-checked="false" tabindex="0">
+                                <div class="palette-swatches">
+                                    <div class="swatch" style="background-color: #f67280;"></div>
+                                    <div class="swatch" style="background-color: #c06c84;"></div>
+                                    <div class="swatch" style="background-color: #6c5b7b;"></div>
+                                    <div class="swatch" style="background-color: #355c7d;"></div>
+                                    <div class="swatch" style="background-color: #f8b195;"></div>
+                                </div>
+                                <span>Sunset</span>
+                            </div>
+                             <div class="palette-option" data-palette-name="Vibrant" data-palette-colors="#00b8a9, #f6416c, #ffde7d, #247ba0, #ffffff" role="radio" aria-checked="false" tabindex="0">
+                                <div class="palette-swatches">
+                                    <div class="swatch" style="background-color: #00b8a9;"></div>
+                                    <div class="swatch" style="background-color: #f6416c;"></div>
+                                    <div class="swatch" style="background-color: #ffde7d;"></div>
+                                    <div class="swatch" style="background-color: #247ba0;"></div>
+                                    <div class="swatch" style="background-color: #ffffff;"></div>
+                                </div>
+                                <span>Vibrant</span>
+                            </div>
                         </div>
-                        <span>Vibrant</span>
-                    </div>
-                </div>
 
-                <h3 class="customization-subheader customization-subheader--spaced">Solid Background</h3>
-                <div class="options-grid" role="radiogroup">
-                    <div class="background-option selected" data-bg-type="none" data-bg-value="none" role="radio" aria-checked="true" tabindex="0">
-                        <span>None</span>
-                    </div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#ffffff" style="background-color: #ffffff;" role="radio" aria-checked="false" tabindex="0" aria-label="White"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#f0f0f0" style="background-color: #f0f0f0;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Gray"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#2c2c2c" style="background-color: #2c2c2c;" role="radio" aria-checked="false" tabindex="0" aria-label="Dark Gray"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#fefae0" style="background-color: #fefae0;" role="radio" aria-checked="false" tabindex="0" aria-label="Cream"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#e6f2ff" style="background-color: #e6f2ff;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Blue"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#ffe6e6" style="background-color: #ffe6e6;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Pink"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#fff9c4" style="background-color: #fff9c4;" role="radio" aria-checked="false" tabindex="0" aria-label="Soft Yellow"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#d0f4de" style="background-color: #d0f4de;" role="radio" aria-checked="false" tabindex="0" aria-label="Mint Green"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#e1d5e7" style="background-color: #e1d5e7;" role="radio" aria-checked="false" tabindex="0" aria-label="Lavender"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#ffdac1" style="background-color: #ffdac1;" role="radio" aria-checked="false" tabindex="0" aria-label="Peach"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#b2dfdb" style="background-color: #b2dfdb;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Teal"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#001d3d" style="background-color: #001d3d;" role="radio" aria-checked="false" tabindex="0" aria-label="Navy"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#0077b6" style="background-color: #0077b6;" role="radio" aria-checked="false" tabindex="0" aria-label="Dark Blue"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#2d6a4f" style="background-color: #2d6a4f;" role="radio" aria-checked="false" tabindex="0" aria-label="Forest Green"></div>
-                    <div class="background-option color-option" data-bg-type="color" data-bg-value="#800020" style="background-color: #800020;" role="radio" aria-checked="false" tabindex="0" aria-label="Burgundy"></div>
-                </div>
-                
-                <h2>6. Layout & Style</h2>
-                <!-- Layout Options -->
-                <div class="layout-options-container" role="radiogroup" aria-labelledby="layout-heading">
-                    <div class="layout-option" data-layout="text-focus" role="radio" aria-checked="false" tabindex="0">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>
-                        <span>Text Focus</span>
-                    </div>
-                    <div class="layout-option selected" data-layout="balanced" role="radio" aria-checked="true" tabindex="0">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="5" rx="1"/><line x1="7" y1="16" x2="17" y2="16"/><line x1="7" y1="4" x2="17" y2="14"/></svg>
-                        <span>Balanced</span>
-                    </div>
-                    <div class="layout-option" data-layout="image-focus" role="radio" aria-checked="false" tabindex="0">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
-                        <span>Image Focus</span>
-                    </div>
-                </div>
+                        <h3 class="customization-subheader customization-subheader--spaced">Solid Background</h3>
+                        <div class="options-grid" role="radiogroup">
+                            <div class="background-option selected" data-bg-type="none" data-bg-value="none" role="radio" aria-checked="true" tabindex="0">
+                                <span>None</span>
+                            </div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#ffffff" style="background-color: #ffffff;" role="radio" aria-checked="false" tabindex="0" aria-label="White"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#f0f0f0" style="background-color: #f0f0f0;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Gray"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#2c2c2c" style="background-color: #2c2c2c;" role="radio" aria-checked="false" tabindex="0" aria-label="Dark Gray"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#fefae0" style="background-color: #fefae0;" role="radio" aria-checked="false" tabindex="0" aria-label="Cream"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#e6f2ff" style="background-color: #e6f2ff;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Blue"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#ffe6e6" style="background-color: #ffe6e6;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Pink"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#fff9c4" style="background-color: #fff9c4;" role="radio" aria-checked="false" tabindex="0" aria-label="Soft Yellow"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#d0f4de" style="background-color: #d0f4de;" role="radio" aria-checked="false" tabindex="0" aria-label="Mint Green"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#e1d5e7" style="background-color: #e1d5e7;" role="radio" aria-checked="false" tabindex="0" aria-label="Lavender"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#ffdac1" style="background-color: #ffdac1;" role="radio" aria-checked="false" tabindex="0" aria-label="Peach"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#b2dfdb" style="background-color: #b2dfdb;" role="radio" aria-checked="false" tabindex="0" aria-label="Light Teal"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#001d3d" style="background-color: #001d3d;" role="radio" aria-checked="false" tabindex="0" aria-label="Navy"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#0077b6" style="background-color: #0077b6;" role="radio" aria-checked="false" tabindex="0" aria-label="Dark Blue"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#2d6a4f" style="background-color: #2d6a4f;" role="radio" aria-checked="false" tabindex="0" aria-label="Forest Green"></div>
+                            <div class="background-option color-option" data-bg-type="color" data-bg-value="#800020" style="background-color: #800020;" role="radio" aria-checked="false" tabindex="0" aria-label="Burgundy"></div>
+                        </div>
+                        
+                        <h2>6. Layout & Style</h2>
+                        <!-- Layout Options -->
+                        <div class="layout-options-container" role="radiogroup" aria-labelledby="layout-heading">
+                            <div class="layout-option" data-layout="text-focus" role="radio" aria-checked="false" tabindex="0">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>
+                                <span>Text Focus</span>
+                            </div>
+                            <div class="layout-option selected" data-layout="balanced" role="radio" aria-checked="true" tabindex="0">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="5" rx="1"/><line x1="7" y1="16" x2="17" y2="16"/><line x1="7" y1="4" x2="17" y2="14"/></svg>
+                                <span>Balanced</span>
+                            </div>
+                            <div class="layout-option" data-layout="image-focus" role="radio" aria-checked="false" tabindex="0">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                <span>Image Focus</span>
+                            </div>
+                        </div>
 
-                <!-- Font Options -->
-                <div class="font-options-container" role="radiogroup" aria-labelledby="font-heading">
-                    <div class="font-option selected" data-font="sans-serif" role="radio" aria-checked="true" tabindex="0"><span style="font-family: sans-serif;">Sans-serif</span></div>
-                    <div class="font-option" data-font="serif" role="radio" aria-checked="false" tabindex="0"><span style="font-family: serif;">Serif</span></div>
-                    <div class="font-option" data-font="script" role="radio" aria-checked="false" tabindex="0"><span style="font-family: cursive;">Script</span></div>
-                    <div class="font-option" data-font="modern" role="radio" aria-checked="false" tabindex="0"><span style="font-family: 'Arial Black', sans-serif;">Modern</span></div>
-                    <div class="font-option" data-font="classic" role="radio" aria-checked="false" tabindex="0"><span style="font-family: 'Times New Roman', Times, serif;">Classic</span></div>
-                    <div class="font-option" data-font="futuristic" role="radio" aria-checked="false" tabindex="0"><span style="font-family: 'Courier New', Courier, monospace;">Futuristic</span></div>
-                </div>
-                
-                <!-- Size Options -->
-                <div class="size-options-container" role="radiogroup" aria-labelledby="size-heading">
-                    <div class="size-option selected" data-size="a4-portrait" role="radio" aria-checked="true" tabindex="0"><span>A4 Portrait</span></div>
-                    <div class="size-option" data-size="a4-landscape" role="radio"aria-checked="false" tabindex="0"><span>A4 Landscape</span></div>
-                    <div class="size-option" data-size="us-letter" role="radio" aria-checked="false" tabindex="0"><span>US Letter</span></div>
-                    <div class="size-option" data-size="us-letter-landscape" role="radio"aria-checked="false" tabindex="0"><span>US Letter Landscape</span></div>
-                    <div class="size-option" data-size="square-post" role="radio"aria-checked="false" tabindex="0"><span>Square Post</span></div>
-                    <div class="size-option" data-size="social-banner" role="radio"aria-checked="false" tabindex="0"><span>Social Banner</span></div>
-                    <div class="size-option" data-size="logo" role="radio"aria-checked="false" tabindex="0"><span>Logo</span></div>
-                </div>
+                        <!-- Font Options -->
+                        <div class="font-options-container" role="radiogroup" aria-labelledby="font-heading">
+                            <div class="font-option selected" data-font="sans-serif" role="radio" aria-checked="true" tabindex="0"><span style="font-family: sans-serif;">Sans-serif</span></div>
+                            <div class="font-option" data-font="serif" role="radio" aria-checked="false" tabindex="0"><span style="font-family: serif;">Serif</span></div>
+                            <div class="font-option" data-font="script" role="radio" aria-checked="false" tabindex="0"><span style="font-family: cursive;">Script</span></div>
+                            <div class="font-option" data-font="modern" role="radio" aria-checked="false" tabindex="0"><span style="font-family: 'Arial Black', sans-serif;">Modern</span></div>
+                            <div class="font-option" data-font="classic" role="radio" aria-checked="false" tabindex="0"><span style="font-family: 'Times New Roman', Times, serif;">Classic</span></div>
+                            <div class="font-option" data-font="futuristic" role="radio" aria-checked="false" tabindex="0"><span style="font-family: 'Courier New', Courier, monospace;">Futuristic</span></div>
+                        </div>
+                        
+                        <!-- Size Options -->
+                        <div class="size-options-container" role="radiogroup" aria-labelledby="size-heading">
+                            <div class="size-option selected" data-size="a4-portrait" role="radio" aria-checked="true" tabindex="0"><span>A4 Portrait</span></div>
+                            <div class="size-option" data-size="a4-landscape" role="radio"aria-checked="false" tabindex="0"><span>A4 Landscape</span></div>
+                            <div class="size-option" data-size="us-letter" role="radio" aria-checked="false" tabindex="0"><span>US Letter</span></div>
+                            <div class="size-option" data-size="us-letter-landscape" role="radio"aria-checked="false" tabindex="0"><span>US Letter Landscape</span></div>
+                            <div class="size-option" data-size="square-post" role="radio"aria-checked="false" tabindex="0"><span>Square Post</span></div>
+                            <div class="size-option" data-size="social-banner" role="radio"aria-checked="false" tabindex="0"><span>Social Banner</span></div>
+                            <div class="size-option" data-size="logo" role="radio"aria-checked="false" tabindex="0"><span>Logo</span></div>
+                        </div>
 
-                <h2>7. Text Effects</h2>
-                <div class="text-effects-container">
-                    <div class="text-effect-option" data-effect="bold" role="checkbox" aria-checked="false" tabindex="0">
-                        <span style="font-weight: bold;">Bold</span>
-                    </div>
-                    <div class="text-effect-option" data-effect="italic" role="checkbox" aria-checked="false" tabindex="0">
-                        <span style="font-style: italic;">Italic</span>
-                    </div>
-                    <div class="text-effect-option" data-effect="underline" role="checkbox" aria-checked="false" tabindex="0">
-                        <span style="text-decoration: underline;">Underline</span>
-                    </div>
-                </div>
+                        <h2>7. Text Effects</h2>
+                        <div class="text-effects-container">
+                            <div class="text-effect-option" data-effect="bold" role="checkbox" aria-checked="false" tabindex="0">
+                                <span style="font-weight: bold;">Bold</span>
+                            </div>
+                            <div class="text-effect-option" data-effect="italic" role="checkbox" aria-checked="false" tabindex="0">
+                                <span style="font-style: italic;">Italic</span>
+                            </div>
+                            <div class="text-effect-option" data-effect="underline" role="checkbox" aria-checked="false" tabindex="0">
+                                <span style="text-decoration: underline;">Underline</span>
+                            </div>
+                        </div>
 
-                <button id="generate-btn" class="btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.5 2.5 0 0 0 3.5 0L21 12z"/></svg>
-                    <span>Generate Design</span>
-                </button>
-            </section>
+                        <button id="generate-btn" class="btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.5 2.5 0 0 0 3.5 0L21 12z"/></svg>
+                            <span>Generate Design</span>
+                        </button>
+                    </section>
 
-            <section class="output-panel">
-                <div id="output-placeholder">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.se's prompt 2.5 0 0 0 3.5 0L21 12z"/></svg>
-                    <h3>Your design will appear here</h3>
-                    <p>Fill out the details on the left and click "Generate" to get started.</p>
-                </div>
+                    <section class="output-panel">
+                        <div id="output-placeholder">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.se's prompt 2.5 0 0 0 3.5 0L21 12z"/></svg>
+                            <h3>Your design will appear here</h3>
+                            <p>Fill out the details on the left and click "Generate" to get started.</p>
+                        </div>
 
-                <div id="loader" class="hidden">
-                    <div class="loading-spinner"></div>
-                    <p id="loader-text">Generating...</p>
-                </div>
+                        <div id="loader" class="hidden">
+                            <div class="loading-spinner"></div>
+                            <p id="loader-text">Generating...</p>
+                        </div>
 
-                <div id="result-container" class="hidden">
-                    <img id="flyer-output" alt="Generated design">
-                    <div class="download-controls hidden">
-                         <select id="format-select" class="format-select">
-                            <option value="png">PNG</option>
-                            <option value="jpg">JPG</option>
-                        </select>
-                        <a href="#" id="download-btn" class="btn">Download</a>
-                    </div>
+                        <div id="result-container" class="hidden">
+                            <img id="flyer-output" alt="Generated design">
+                            <div class="download-controls hidden">
+                                 <select id="format-select" class="format-select">
+                                    <option value="png">PNG</option>
+                                    <option value="jpg">JPG</option>
+                                </select>
+                                <a href="#" id="download-btn" class="btn">Download</a>
+                            </div>
+                        </div>
+                        
+                        <div id="error-message" class="hidden"></div>
+                    </section>
                 </div>
-                
-                <div id="error-message" class="hidden"></div>
-            </section>
+            </div>
+            
+            <div id="image-studio-page" class="tab-content hidden">
+                <div class="generator-container">
+                    <section class="input-panel">
+                        <div class="studio-tabs">
+                            <button id="studio-tab-edit" class="studio-tab-btn active" role="tab" aria-selected="true">Edit</button>
+                            <button id="studio-tab-generate" class="studio-tab-btn" role="tab" aria-selected="false">Generate</button>
+                        </div>
+            
+                        <div id="studio-edit-panel" class="studio-panel active">
+                            <h2>Upload & Adjust</h2>
+                            <div id="studio-image-upload-area" role="button" aria-label="Upload your image" tabindex="0">
+                                <input type="file" id="studio-logo-upload" accept="image/*" class="hidden">
+                                <div id="studio-upload-placeholder">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                    <p>Click to upload or drag & drop</p>
+                                    <span>JPG, PNG, WEBP</span>
+                                </div>
+                            </div>
+                            
+                            <div class="adjustment-controls hidden">
+                                <h2>Adjustments</h2>
+                                <div class="slider-group">
+                                    <label for="brightness-slider">Brightness</label>
+                                    <input type="range" id="brightness-slider" min="0" max="200" value="100">
+                                </div>
+                                <div class="slider-group">
+                                    <label for="contrast-slider">Contrast</label>
+                                    <input type="range" id="contrast-slider" min="0" max="200" value="100">
+                                </div>
+                                <div class="slider-group">
+                                    <label for="saturate-slider">Saturation</label>
+                                    <input type="range" id="saturate-slider" min="0" max="200" value="100">
+                                </div>
+                                <div class="slider-group">
+                                    <label for="blur-slider">Blur</label>
+                                    <input type="range" id="blur-slider" min="0" max="10" value="0" step="0.1">
+                                </div>
+
+                                <h2>Text Overlay</h2>
+                                <div class="input-container">
+                                    <textarea id="text-overlay-input" rows="2" placeholder="Add text to your image..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+            
+                        <div id="studio-generate-panel" class="studio-panel">
+                            <h2>Generate Image</h2>
+                            <div class="input-container">
+                                <textarea id="image-prompt-input" rows="4" placeholder="e.g., A majestic lion with a glowing mane in a futuristic city..."></textarea>
+                                <button id="enhance-image-prompt-btn" class="btn-icon" aria-label="Enhance with AI" title="Enhance with AI" disabled>
+                                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3L9.5 9.5 3 12l6.5 2.5L12 21l2.5-6.5L21 12l-6.5-2.5L12 3z"/></svg>
+                                </button>
+                            </div>
+
+                            <h2>Style</h2>
+                            <div class="style-chips-container">
+                                <div class="style-chip" data-style="Photo" role="checkbox" aria-checked="false" tabindex="0">Photo</div>
+                                <div class="style-chip" data-style="3D Render" role="checkbox" aria-checked="false" tabindex="0">3D Render</div>
+                                <div class="style-chip" data-style="Watercolor" role="checkbox" aria-checked="false" tabindex="0">Watercolor</div>
+                                <div class="style-chip" data-style="Flat Illustration" role="checkbox" aria-checked="false" tabindex="0">Flat Illustration</div>
+                                <div class="style-chip" data-style="Cinematic" role="checkbox" aria-checked="false" tabindex="0">Cinematic</div>
+                                <div class="style-chip" data-style="Portrait" role="checkbox" aria-checked="false" tabindex="0">Portrait</div>
+                            </div>
+
+                            <button id="generate-image-btn" class="btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                                <span>Generate Image</span>
+                            </button>
+                        </div>
+                    </section>
+            
+                    <section class="output-panel">
+                        <div id="studio-output-placeholder">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            <h3>Your image will appear here</h3>
+                            <p>Upload an image to start editing or generate a new one.</p>
+                        </div>
+
+                        <div id="studio-loader" class="hidden">
+                             <div class="loading-spinner"></div>
+                            <p id="studio-loader-text">Working on it...</p>
+                        </div>
+                        
+                         <div id="studio-result-container" class="hidden">
+                            <div class="canvas-container">
+                                <img id="studio-image-output" alt="Studio image output">
+                                <div id="text-overlay-display"></div>
+                            </div>
+                             <div class="studio-download-controls hidden">
+                                <select id="studio-format-select" class="format-select">
+                                    <option value="png">PNG</option>
+                                    <option value="jpg">JPG</option>
+                                </select>
+                                <a href="#" id="studio-download-btn" class="btn">Export Image</a>
+                            </div>
+                        </div>
+
+                        <div id="studio-error-message" class="hidden"></div>
+                    </section>
+                </div>
+            </div>
         </main>
     </div>
 

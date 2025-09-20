@@ -4,6 +4,15 @@ import { GoogleGenAI, Modality } from "@google/genai";
 declare var Cropper: any;
 
 // --- DOM ELEMENT VARIABLES (to be assigned in initialize) ---
+
+// -- App Shell --
+let themeSwitcherBtn: HTMLButtonElement;
+let tabDesignGenerator: HTMLButtonElement;
+let tabImageStudio: HTMLButtonElement;
+let designGeneratorPage: HTMLDivElement;
+let imageStudioPage: HTMLDivElement;
+
+// -- Design Generator --
 let descriptionHeader: HTMLHeadingElement;
 let promptInput: HTMLTextAreaElement;
 let enhancePromptBtn: HTMLButtonElement;
@@ -35,15 +44,45 @@ let downloadControls: HTMLDivElement;
 let downloadBtn: HTMLAnchorElement;
 let formatSelect: HTMLSelectElement;
 let errorMessage: HTMLDivElement;
-let themeSwitcherBtn: HTMLButtonElement;
-// Cropping modal elements
+
+// -- Cropping modal elements --
 let cropModal: HTMLDivElement;
 let imageToCrop: HTMLImageElement;
 let applyCropBtn: HTMLButtonElement;
 let cancelCropBtn: HTMLButtonElement;
 
+// -- Image Studio --
+let studioTabEdit: HTMLButtonElement;
+let studioTabGenerate: HTMLButtonElement;
+let studioEditPanel: HTMLDivElement;
+let studioGeneratePanel: HTMLDivElement;
+let studioImageUploadArea: HTMLDivElement;
+let studioLogoUpload: HTMLInputElement;
+let studioUploadPlaceholder: HTMLDivElement;
+let adjustmentControls: HTMLDivElement;
+let brightnessSlider: HTMLInputElement;
+let contrastSlider: HTMLInputElement;
+let saturateSlider: HTMLInputElement;
+let blurSlider: HTMLInputElement;
+let textOverlayInput: HTMLTextAreaElement;
+let imagePromptInput: HTMLTextAreaElement;
+let enhanceImagePromptBtn: HTMLButtonElement;
+let styleChips: NodeListOf<HTMLDivElement>;
+let generateImageBtn: HTMLButtonElement;
+let studioOutputPlaceholder: HTMLDivElement;
+let studioLoader: HTMLDivElement;
+let studioLoaderText: HTMLParagraphElement;
+let studioResultContainer: HTMLDivElement;
+let studioImageOutput: HTMLImageElement;
+let textOverlayDisplay: HTMLDivElement;
+let studioDownloadControls: HTMLDivElement;
+let studioFormatSelect: HTMLSelectElement;
+let studioDownloadBtn: HTMLAnchorElement;
+let studioErrorMessage: HTMLDivElement;
+
 
 // --- STATE ---
+// Design Generator State
 let logoDataUrl: string | null = null;
 let cropper: any | null = null; // Cropper instance
 let isGenerating = false;
@@ -59,8 +98,23 @@ let selectedTextEffects = new Set<string>();
 let selectedLogoSize = 'medium';
 let selectedLogoPosition = 'top-right';
 
+// Image Studio State
+let studioCurrentImageSrc: string | null = null;
+let studioImageFilters = {
+    brightness: 100,
+    contrast: 100,
+    saturate: 100,
+    blur: 0,
+};
+let studioTextOverlay = '';
+let selectedImageStyles = new Set<string>();
+let isGeneratingImage = false;
+let isEnhancingImagePrompt = false;
+
+// Shared State
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
 const THEME_KEY = 'flyergen-theme';
+const LAST_TAB_KEY = 'flyergen-last-tab';
 
 
 // --- GEMINI SETUP ---
@@ -122,8 +176,8 @@ function hideLoading() {
  * @param size The currently selected size (e.g., 'logo', 'social-banner').
  */
 function updateDynamicText(size: string) {
-    let designType = 'Flyer';
-    let placeholder = 'e.g., A modern tech conference flyer with a blue and white color scheme...';
+    let designType = 'Design';
+    let placeholder = 'e.g., A modern design for a tech conference with a blue and white color scheme...';
     if (size === 'logo') {
         designType = 'Logo';
         placeholder = 'e.g., A minimalist logo for a coffee shop, featuring a stylized coffee bean...';
@@ -207,15 +261,20 @@ function showResult(imageDataUrl: string) {
     if (downloadControls) downloadControls.classList.remove('hidden');
 }
 
-function showError(message: string) {
+function showError(message: string, isStudioError = false) {
     hideLoading();
-    if (errorMessage) {
-        errorMessage.textContent = message;
-        errorMessage.classList.remove('hidden');
+    const errorEl = isStudioError ? studioErrorMessage : errorMessage;
+    if (isStudioError) {
+        studioLoader.classList.add('hidden');
+    }
+
+    if (errorEl) {
+        errorEl.textContent = message;
+        errorEl.classList.remove('hidden');
     }
 }
 
-// --- THEME FUNCTIONS ---
+// --- THEME & TAB FUNCTIONS ---
 function applyTheme(theme: 'light' | 'dark') {
     document.body.setAttribute('data-theme', theme);
 }
@@ -236,6 +295,27 @@ function loadTheme() {
     } else {
         applyTheme(systemPrefersDark ? 'dark' : 'light');
     }
+}
+
+function switchAppTab(targetTab: 'design' | 'studio') {
+    if (targetTab === 'design') {
+        tabDesignGenerator.classList.add('active');
+        tabImageStudio.classList.remove('active');
+        designGeneratorPage.classList.add('active');
+        imageStudioPage.classList.remove('hidden'); // Use hidden for studio
+        imageStudioPage.classList.remove('active');
+        designGeneratorPage.classList.remove('hidden');
+
+    } else {
+        tabDesignGenerator.classList.remove('active');
+        tabImageStudio.classList.add('active');
+        designGeneratorPage.classList.remove('active');
+        designGeneratorPage.classList.add('hidden');
+        imageStudioPage.classList.add('active');
+        imageStudioPage.classList.remove('hidden');
+
+    }
+    localStorage.setItem(LAST_TAB_KEY, targetTab);
 }
 
 // --- PREFERENCES FUNCTIONS ---
@@ -447,7 +527,7 @@ function handleClearPrefs() {
     updateDynamicText(selectedSize);
 }
 
-// --- EVENT HANDLERS ---
+// --- EVENT HANDLERS (Design Generator) ---
 async function handleEnhancePromptClick() {
     if (isEnhancing || !promptInput.value.trim()) return;
 
@@ -670,8 +750,8 @@ function handleTextEffectSelection(event: Event) {
 /**
  * Parses an error from the AI API and displays a user-friendly message.
  */
-function parseAndShowError(error: unknown) {
-    console.error("Design Generation Error:", error);
+function parseAndShowError(error: unknown, isStudioError = false) {
+    console.error("AI Generation Error:", error);
 
     let userMessage = "An unexpected error occurred. Please check the console for details and try again.";
 
@@ -692,7 +772,7 @@ function parseAndShowError(error: unknown) {
         }
     }
     
-    showError(userMessage);
+    showError(userMessage, isStudioError);
 }
 
 async function handleGenerateClick() {
@@ -889,7 +969,7 @@ async function handleDownloadClick(event: MouseEvent) {
     const dataUrl = flyerOutput.src;
     
     // Determine the type of design for the filename
-    const designType = selectedSize === 'logo' ? 'logo' : selectedSize.includes('banner') ? 'banner' : 'flyer';
+    const designType = selectedSize === 'logo' ? 'logo' : selectedSize.includes('banner') ? 'banner' : 'design';
     const fileName = `${designType}-design.${format}`;
 
     if (!dataUrl || !dataUrl.startsWith('data:image')) {
@@ -962,9 +1042,228 @@ async function handleDownloadClick(event: MouseEvent) {
 }
 
 
+// --- EVENT HANDLERS (Image Studio) ---
+
+function handleStudioTabSwitch(targetTab: 'edit' | 'generate') {
+    if (targetTab === 'edit') {
+        studioTabEdit.classList.add('active');
+        studioTabGenerate.classList.remove('active');
+        studioEditPanel.classList.add('active');
+        studioGeneratePanel.classList.remove('active');
+    } else {
+        studioTabEdit.classList.remove('active');
+        studioTabGenerate.classList.add('active');
+        studioEditPanel.classList.remove('active');
+        studioGeneratePanel.classList.add('active');
+    }
+}
+
+function handleStudioImageUpload(files: FileList | null) {
+    if (files && files.length > 0) {
+        const file = files[0];
+        if (!file.type.startsWith('image/')) {
+            showError('Please select a valid image file (JPG, PNG, WEBP).', true);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            studioCurrentImageSrc = e.target?.result as string;
+            studioImageOutput.src = studioCurrentImageSrc;
+            studioResultContainer.classList.remove('hidden');
+            studioOutputPlaceholder.classList.add('hidden');
+            studioDownloadControls.classList.remove('hidden');
+            adjustmentControls.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+}
+
+function applyStudioImageFilters() {
+    const filters = studioImageFilters;
+    const filterString = `brightness(${filters.brightness}%) contrast(${filters.contrast}%) saturate(${filters.saturate}%) blur(${filters.blur}px)`;
+    studioImageOutput.style.filter = filterString;
+}
+
+async function handleEnhanceImagePromptClick() {
+    if (isEnhancingImagePrompt || !imagePromptInput.value.trim()) return;
+
+    isEnhancingImagePrompt = true;
+    enhanceImagePromptBtn.disabled = true;
+    enhanceImagePromptBtn.classList.add('loading');
+    
+    const currentText = imagePromptInput.value.trim();
+    const enhancePrompt = `You are a prompt enhancer for an AI image generator. Rewrite the following user description into a clear, specific, and evocative prompt. Include details about the subject, scene, composition, lighting, color palette, mood, and style. Keep it under 120 words. Return only the enhanced prompt, with no introductory text.\n\nUser Description: "${currentText}"`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: enhancePrompt,
+        });
+        
+        const newText = response.text.trim();
+        if (newText) {
+            imagePromptInput.value = newText;
+        } else {
+            showError("The AI couldn't enhance the description. Please try a different one.", true);
+        }
+    } catch (error) {
+        parseAndShowError(error, true);
+    } finally {
+        isEnhancingImagePrompt = false;
+        enhanceImagePromptBtn.classList.remove('loading');
+        enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
+    }
+}
+
+async function handleGenerateImageClick() {
+    if (isGeneratingImage) return;
+
+    const prompt = imagePromptInput.value.trim();
+    if (!prompt) {
+        showError("Please enter a description for the image you want to create.", true);
+        return;
+    }
+
+    isGeneratingImage = true;
+    generateImageBtn.disabled = true;
+    generateImageBtn.classList.add('loading');
+    studioResultContainer.classList.add('hidden');
+    studioOutputPlaceholder.classList.add('hidden');
+    studioErrorMessage.classList.add('hidden');
+    studioLoader.classList.remove('hidden');
+    studioLoaderText.textContent = 'Generating your image...';
+
+    try {
+        let fullPrompt = prompt;
+        if (selectedImageStyles.size > 0) {
+            fullPrompt += `, in the style of: ${Array.from(selectedImageStyles).join(', ')}.`;
+        }
+
+        const response = await ai.models.generateImages({
+            model: 'imagen-4.0-generate-001',
+            prompt: fullPrompt,
+            config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/png',
+                aspectRatio: '1:1', // Default, can be expanded later
+            },
+        });
+
+        if (response.generatedImages && response.generatedImages.length > 0) {
+            const base64ImageBytes = response.generatedImages[0].image.imageBytes;
+            studioCurrentImageSrc = `data:image/png;base64,${base64ImageBytes}`;
+            studioImageOutput.src = studioCurrentImageSrc;
+            studioResultContainer.classList.remove('hidden');
+            studioDownloadControls.classList.remove('hidden');
+            adjustmentControls.classList.remove('hidden');
+        } else {
+            showError("The AI couldn't generate an image from that prompt. Please try refining it.", true);
+        }
+
+    } catch (error) {
+        parseAndShowError(error, true);
+    } finally {
+        isGeneratingImage = false;
+        generateImageBtn.disabled = false;
+        generateImageBtn.classList.remove('loading');
+        studioLoader.classList.add('hidden');
+    }
+}
+
+async function handleExportImageClick(event: MouseEvent) {
+    event.preventDefault();
+    if (!studioCurrentImageSrc) {
+        showError("There is no image to export.", true);
+        return;
+    }
+
+    const format = studioFormatSelect.value;
+    const fileName = `studio-export.${format}`;
+
+    const originalButtonText = studioDownloadBtn.textContent;
+    studioDownloadBtn.textContent = 'Exporting...';
+    studioDownloadBtn.classList.add('disabled');
+
+    try {
+        const image = new Image();
+        image.crossOrigin = 'anonymous'; // Important for cross-origin data
+        
+        await new Promise((resolve, reject) => {
+            image.onload = resolve;
+            image.onerror = reject;
+            image.src = studioCurrentImageSrc!;
+        });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = image.naturalWidth;
+        canvas.height = image.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error("Could not create canvas context.");
+
+        // Apply filters
+        ctx.filter = studioImageOutput.style.filter;
+        ctx.drawImage(image, 0, 0);
+
+        // Apply text overlay
+        if (studioTextOverlay) {
+            ctx.filter = 'none'; // Reset filter so text is not blurred, etc.
+            ctx.font = 'bold 64px sans-serif'; // Example style
+            ctx.fillStyle = 'white';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            // Simple drop shadow
+            ctx.shadowColor = 'rgba(0,0,0,0.7)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 5;
+            ctx.shadowOffsetY = 5;
+            ctx.fillText(studioTextOverlay, canvas.width / 2, canvas.height / 2);
+        }
+
+        let finalDataUrl = canvas.toDataURL(`image/${format}`, 0.9);
+
+        // If JPG, we need to handle transparency by drawing on a white background first
+        if (format === 'jpg') {
+             const jpgCanvas = document.createElement('canvas');
+             jpgCanvas.width = image.naturalWidth;
+             jpgCanvas.height = image.naturalHeight;
+             const jpgCtx = jpgCanvas.getContext('2d')!;
+             jpgCtx.fillStyle = '#FFFFFF';
+             jpgCtx.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height);
+             jpgCtx.drawImage(canvas, 0, 0);
+             finalDataUrl = jpgCanvas.toDataURL('image/jpeg', 0.9);
+        }
+        
+        // Trigger download
+        const link = document.createElement('a');
+        link.href = finalDataUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+    } catch (error) {
+        console.error("Export failed:", error);
+        showError("Sorry, the image could not be exported.", true);
+    } finally {
+        studioDownloadBtn.textContent = originalButtonText;
+        studioDownloadBtn.classList.remove('disabled');
+    }
+}
+
+
 // --- INITIALIZATION ---
 function initialize() {
-    // Assign all DOM elements
+    // --- Assign all DOM elements ---
+
+    // -- App Shell --
+    themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
+    tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
+    tabImageStudio = document.getElementById('tab-image-studio') as HTMLButtonElement;
+    designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
+    imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
+
+    // -- Design Generator --
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
     enhancePromptBtn = document.getElementById('enhance-prompt-btn') as HTMLButtonElement;
@@ -995,154 +1294,135 @@ function initialize() {
     downloadBtn = document.getElementById('download-btn') as HTMLAnchorElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
-    themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
     cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
 
+    // -- Image Studio --
+    studioTabEdit = document.getElementById('studio-tab-edit') as HTMLButtonElement;
+    studioTabGenerate = document.getElementById('studio-tab-generate') as HTMLButtonElement;
+    studioEditPanel = document.getElementById('studio-edit-panel') as HTMLDivElement;
+    studioGeneratePanel = document.getElementById('studio-generate-panel') as HTMLDivElement;
+    studioImageUploadArea = document.getElementById('studio-image-upload-area') as HTMLDivElement;
+    studioLogoUpload = document.getElementById('studio-logo-upload') as HTMLInputElement;
+    studioUploadPlaceholder = document.getElementById('studio-upload-placeholder') as HTMLDivElement;
+    adjustmentControls = document.querySelector('.adjustment-controls') as HTMLDivElement;
+    brightnessSlider = document.getElementById('brightness-slider') as HTMLInputElement;
+    contrastSlider = document.getElementById('contrast-slider') as HTMLInputElement;
+    saturateSlider = document.getElementById('saturate-slider') as HTMLInputElement;
+    blurSlider = document.getElementById('blur-slider') as HTMLInputElement;
+    textOverlayInput = document.getElementById('text-overlay-input') as HTMLTextAreaElement;
+    imagePromptInput = document.getElementById('image-prompt-input') as HTMLTextAreaElement;
+    enhanceImagePromptBtn = document.getElementById('enhance-image-prompt-btn') as HTMLButtonElement;
+    styleChips = document.querySelectorAll('.style-chip');
+    generateImageBtn = document.getElementById('generate-image-btn') as HTMLButtonElement;
+    studioOutputPlaceholder = document.getElementById('studio-output-placeholder') as HTMLDivElement;
+    studioLoader = document.getElementById('studio-loader') as HTMLDivElement;
+    studioLoaderText = document.getElementById('studio-loader-text') as HTMLParagraphElement;
+    studioResultContainer = document.getElementById('studio-result-container') as HTMLDivElement;
+    studioImageOutput = document.getElementById('studio-image-output') as HTMLImageElement;
+    textOverlayDisplay = document.getElementById('text-overlay-display') as HTMLDivElement;
+    studioDownloadControls = document.querySelector('.studio-download-controls') as HTMLDivElement;
+    studioFormatSelect = document.getElementById('studio-format-select') as HTMLSelectElement;
+    studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLAnchorElement;
+    studioErrorMessage = document.getElementById('studio-error-message') as HTMLDivElement;
 
-    // Comprehensive check for critical elements
-    const requiredElements = {
-        descriptionHeader, promptInput, enhancePromptBtn, companyNameInput, contactDetailsInput, imageUploadArea, logoUpload,
-        generateBtn, downloadBtn, clearPrefsBtn, downloadControls, formatSelect,
-        logoPreview, uploadPlaceholder, outputPlaceholder, loader, loaderText,
-        resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,
-        themeSwitcherBtn, cropModal, imageToCrop, applyCropBtn, cancelCropBtn
-    };
 
-    for (const [name, el] of Object.entries(requiredElements)) {
-        if (!el) {
-            console.error(`Initialization failed: Element "${name}" is missing from the DOM.`);
-            document.body.innerHTML = `<p style="color: red; font-family: sans-serif; padding: 2rem;">Error: Application could not start. A required UI element (${name}) is missing.</p>`;
-            return;
-        }
-    }
-    
-    // Now that we know generateBtn exists, we can safely query its inner elements.
+    // --- Now that we know generateBtn exists, we can safely query its inner elements. ---
     generateBtnSpan = generateBtn.querySelector('span') as HTMLSpanElement;
-    if (!generateBtnSpan) {
-        console.error("Initialization failed: The 'generate-btn' is missing its inner span element.");
-        // We can let the app continue, but the button text won't update.
-    }
 
-    // Attach all event listeners
+    // --- Attach all event listeners ---
+    
+    // -- App Shell --
     themeSwitcherBtn.addEventListener('click', toggleTheme);
-    enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
+    tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
+    tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
 
+    // -- Design Generator --
+    enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
     imageUploadArea.addEventListener('click', (e) => {
-        // Prevent click on logoUpload when remove button is clicked
         if (e.target !== removeLogoBtn) {
             logoUpload.click();
         }
     });
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
     removeLogoBtn.addEventListener('click', handleRemoveLogo);
-
-    imageUploadArea.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        imageUploadArea.classList.add('drag-over');
-    });
-    imageUploadArea.addEventListener('dragleave', () => {
-        imageUploadArea.classList.remove('drag-over');
-    });
+    imageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); imageUploadArea.classList.add('drag-over'); });
+    imageUploadArea.addEventListener('dragleave', () => imageUploadArea.classList.remove('drag-over'));
     imageUploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
         imageUploadArea.classList.remove('drag-over');
         handleLogoSelection(e.dataTransfer?.files ?? null);
     });
-
     applyCropBtn.addEventListener('click', handleApplyCrop);
     cancelCropBtn.addEventListener('click', handleCancelCrop);
-    
-    logoSizeOptions.forEach(option => {
-        option.addEventListener('click', handleLogoSizeSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleLogoSizeSelection(e);
-            }
-        });
-    });
-
-    logoPositionOptions.forEach(option => {
-        option.addEventListener('click', handleLogoPositionSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleLogoPositionSelection(e);
-            }
-        });
-    });
-
-    paletteOptions.forEach(option => {
-        option.addEventListener('click', handlePaletteSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handlePaletteSelection(e);
-            }
-        });
-    });
-
-    layoutOptions.forEach(option => {
-        option.addEventListener('click', handleLayoutSelection);
-    });
-    
-    backgroundOptions.forEach(option => {
-        option.addEventListener('click', handleBackgroundSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleBackgroundSelection(e);
-            }
-        });
-    });
-
-    fontOptions.forEach(option => {
-        option.addEventListener('click', handleFontSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleFontSelection(e);
-            }
-        });
-    });
-
-    sizeOptions.forEach(option => {
-        option.addEventListener('click', handleSizeSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleSizeSelection(e);
-            }
-        });
-    });
-
-    textEffectOptions.forEach(option => {
-        option.addEventListener('click', handleTextEffectSelection);
-        option.addEventListener('keydown', (e) => {
-            if ((e as KeyboardEvent).key === 'Enter' || (e as KeyboardEvent).key === ' ') {
-                e.preventDefault();
-                handleTextEffectSelection(e);
-            }
-        });
-    });
-
-    // Add listeners for auto-saving text inputs
+    logoSizeOptions.forEach(option => option.addEventListener('click', handleLogoSizeSelection));
+    logoPositionOptions.forEach(option => option.addEventListener('click', handleLogoPositionSelection));
+    paletteOptions.forEach(option => option.addEventListener('click', handlePaletteSelection));
+    layoutOptions.forEach(option => option.addEventListener('click', handleLayoutSelection));
+    backgroundOptions.forEach(option => option.addEventListener('click', handleBackgroundSelection));
+    fontOptions.forEach(option => option.addEventListener('click', handleFontSelection));
+    sizeOptions.forEach(option => option.addEventListener('click', handleSizeSelection));
+    textEffectOptions.forEach(option => option.addEventListener('click', handleTextEffectSelection));
     promptInput.addEventListener('input', () => {
         enhancePromptBtn.disabled = !promptInput.value.trim();
         debouncedSavePrefs();
     });
     companyNameInput.addEventListener('input', debouncedSavePrefs);
     contactDetailsInput.addEventListener('input', debouncedSavePrefs);
-
     generateBtn.addEventListener('click', handleGenerateClick);
     downloadBtn.addEventListener('click', handleDownloadClick);
     clearPrefsBtn.addEventListener('click', handleClearPrefs);
     
+    // -- Image Studio --
+    studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
+    studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
+    studioImageUploadArea.addEventListener('click', () => studioLogoUpload.click());
+    studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
+    studioImageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); studioImageUploadArea.classList.add('drag-over'); });
+    studioImageUploadArea.addEventListener('dragleave', () => studioImageUploadArea.classList.remove('drag-over'));
+    studioImageUploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        studioImageUploadArea.classList.remove('drag-over');
+        handleStudioImageUpload(e.dataTransfer?.files ?? null);
+    });
+    brightnessSlider.addEventListener('input', () => { studioImageFilters.brightness = parseInt(brightnessSlider.value); applyStudioImageFilters(); });
+    contrastSlider.addEventListener('input', () => { studioImageFilters.contrast = parseInt(contrastSlider.value); applyStudioImageFilters(); });
+    saturateSlider.addEventListener('input', () => { studioImageFilters.saturate = parseInt(saturateSlider.value); applyStudioImageFilters(); });
+    blurSlider.addEventListener('input', () => { studioImageFilters.blur = parseFloat(blurSlider.value); applyStudioImageFilters(); });
+    textOverlayInput.addEventListener('input', () => {
+        studioTextOverlay = textOverlayInput.value;
+        textOverlayDisplay.textContent = studioTextOverlay;
+    });
+    imagePromptInput.addEventListener('input', () => {
+        enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
+    });
+    enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
+    styleChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            const style = chip.dataset.style;
+            if (!style) return;
+            chip.classList.toggle('selected');
+            const isSelected = chip.classList.contains('selected');
+            chip.setAttribute('aria-checked', String(isSelected));
+            if (isSelected) {
+                selectedImageStyles.add(style);
+            } else {
+                selectedImageStyles.delete(style);
+            }
+        });
+    });
+    generateImageBtn.addEventListener('click', handleGenerateImageClick);
+    studioDownloadBtn.addEventListener('click', handleExportImageClick);
+
+    // --- Final Setup ---
     loadTheme();
     handleLoadPrefs();
+    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | null;
+    if (lastTab) {
+        switchAppTab(lastTab);
+    }
 }
 
 // Run initialization
