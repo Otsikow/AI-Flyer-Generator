@@ -33,6 +33,7 @@ let downloadControls: HTMLDivElement;
 let downloadBtn: HTMLAnchorElement;
 let formatSelect: HTMLSelectElement;
 let errorMessage: HTMLDivElement;
+let themeSwitcherBtn: HTMLButtonElement;
 // Cropping modal elements
 let cropModal: HTMLDivElement;
 let imageToCrop: HTMLImageElement;
@@ -56,6 +57,7 @@ let selectedLogoSize = 'medium';
 let selectedLogoPosition = 'top-right';
 
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
+const THEME_KEY = 'flyergen-theme';
 
 
 // --- GEMINI SETUP ---
@@ -166,6 +168,29 @@ function showError(message: string) {
     if (errorMessage) {
         errorMessage.textContent = message;
         errorMessage.classList.remove('hidden');
+    }
+}
+
+// --- THEME FUNCTIONS ---
+function applyTheme(theme: 'light' | 'dark') {
+    document.body.setAttribute('data-theme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = document.body.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    applyTheme(newTheme);
+    localStorage.setItem(THEME_KEY, newTheme);
+}
+
+function loadTheme() {
+    const savedTheme = localStorage.getItem(THEME_KEY) as 'light' | 'dark' | null;
+    const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+    if (savedTheme) {
+        applyTheme(savedTheme);
+    } else {
+        applyTheme(systemPrefersDark ? 'dark' : 'light');
     }
 }
 
@@ -877,6 +902,7 @@ function initialize() {
     downloadBtn = document.getElementById('download-btn') as HTMLAnchorElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
+    themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
@@ -889,7 +915,7 @@ function initialize() {
         generateBtn, downloadBtn, clearPrefsBtn, downloadControls, formatSelect,
         logoPreview, uploadPlaceholder, outputPlaceholder, loader, loaderText,
         resultContainer, flyerOutput, errorMessage, removeLogoBtn, logoCustomizationSection,
-        cropModal, imageToCrop, applyCropBtn, cancelCropBtn
+        themeSwitcherBtn, cropModal, imageToCrop, applyCropBtn, cancelCropBtn
     };
 
     for (const [name, el] of Object.entries(requiredElements)) {
@@ -908,6 +934,8 @@ function initialize() {
     }
 
     // Attach all event listeners
+    themeSwitcherBtn.addEventListener('click', toggleTheme);
+
     imageUploadArea.addEventListener('click', (e) => {
         // Prevent click on logoUpload when remove button is clicked
         if (e.target !== removeLogoBtn) {
@@ -1016,6 +1044,7 @@ function initialize() {
     downloadBtn.addEventListener('click', handleDownloadClick);
     clearPrefsBtn.addEventListener('click', handleClearPrefs);
     
+    loadTheme();
     handleLoadPrefs();
 }
 
