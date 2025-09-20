@@ -60,6 +60,12 @@ let studioImageUploadArea: HTMLDivElement;
 let studioLogoUpload: HTMLInputElement;
 let studioUploadPlaceholder: HTMLDivElement;
 let adjustmentControls: HTMLDivElement;
+// -- AI Edit elements --
+let aiEditSection: HTMLDivElement;
+let aiEditPromptInput: HTMLTextAreaElement;
+let enhanceAiEditBtn: HTMLButtonElement;
+let applyAiEditBtn: HTMLButtonElement;
+// --
 let brightnessSlider: HTMLInputElement;
 let contrastSlider: HTMLInputElement;
 let saturateSlider: HTMLInputElement;
@@ -75,13 +81,11 @@ let textPositionGrid: NodeListOf<HTMLDivElement>;
 let imagePromptInput: HTMLTextAreaElement;
 let enhanceImagePromptBtn: HTMLButtonElement;
 let styleChips: NodeListOf<HTMLDivElement>;
-// -- NEW Image Size Selector elements --
 let sizePresetChips: NodeListOf<HTMLButtonElement>;
 let customWidthInput: HTMLInputElement;
 let customHeightInput: HTMLInputElement;
 let aspectRatioLockToggle: HTMLInputElement;
 let sizePreviewBox: HTMLDivElement;
-// -- End New Elements --
 let generateImageBtn: HTMLButtonElement;
 let studioOutputPlaceholder: HTMLDivElement;
 let studioLoader: HTMLDivElement;
@@ -89,6 +93,10 @@ let studioLoaderText: HTMLParagraphElement;
 let studioResultContainer: HTMLDivElement;
 let studioImageOutput: HTMLImageElement;
 let studioTextCanvas: HTMLCanvasElement;
+// -- History controls --
+let undoBtn: HTMLButtonElement;
+let redoBtn: HTMLButtonElement;
+// --
 let studioDownloadControls: HTMLDivElement;
 let studioFormatSelect: HTMLSelectElement;
 let studioDownloadBtn: HTMLAnchorElement;
@@ -113,6 +121,8 @@ let selectedLogoSize = 'medium';
 let selectedLogoPosition = 'top-right';
 
 // Image Studio State
+let studioImageHistory: string[] = [];
+let studioHistoryIndex = -1;
 let studioCurrentImageSrc: string | null = null;
 let studioImageFilters = {
     brightness: 100,
@@ -137,6 +147,7 @@ let imageGenerationSize = {
 };
 let isGeneratingImage = false;
 let isEnhancingImagePrompt = false;
+let isApplyingAiEdit = false;
 
 // Shared State
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
@@ -1093,6 +1104,65 @@ async function handleDownloadClick(event: MouseEvent) {
 
 // --- EVENT HANDLERS (Image Studio) ---
 
+// -- History Management --
+function updateUndoRedoButtons() {
+    undoBtn.disabled = studioHistoryIndex <= 0;
+    redoBtn.disabled = studioHistoryIndex >= studioImageHistory.length - 1;
+}
+
+function renderCurrentImageFromHistory() {
+    if (studioHistoryIndex < 0 || studioHistoryIndex >= studioImageHistory.length) {
+        return;
+    }
+    const imageDataUrl = studioImageHistory[studioHistoryIndex];
+    studioCurrentImageSrc = imageDataUrl;
+    studioImageOutput.src = imageDataUrl;
+    
+    // Reset manual adjustments when history changes
+    brightnessSlider.value = '100';
+    contrastSlider.value = '100';
+    saturateSlider.value = '100';
+    blurSlider.value = '0';
+    studioImageFilters = { brightness: 100, contrast: 100, saturate: 100, blur: 0 };
+    applyStudioImageFilters();
+    
+    // Wait for the new image to load to set canvas size
+    studioImageOutput.onload = () => {
+        studioTextCanvas.width = studioImageOutput.naturalWidth;
+        studioTextCanvas.height = studioImageOutput.naturalHeight;
+        renderTextOnCanvas(); // Re-render text on new image
+    };
+    
+    updateUndoRedoButtons();
+}
+
+function addHistoryState(imageDataUrl: string) {
+    // If we are not at the end of the history, slice it
+    if (studioHistoryIndex < studioImageHistory.length - 1) {
+        studioImageHistory = studioImageHistory.slice(0, studioHistoryIndex + 1);
+    }
+    studioImageHistory.push(imageDataUrl);
+    studioHistoryIndex = studioImageHistory.length - 1;
+    
+    renderCurrentImageFromHistory();
+}
+
+function handleUndoClick() {
+    if (studioHistoryIndex > 0) {
+        studioHistoryIndex--;
+        renderCurrentImageFromHistory();
+    }
+}
+
+function handleRedoClick() {
+    if (studioHistoryIndex < studioImageHistory.length - 1) {
+        studioHistoryIndex++;
+        renderCurrentImageFromHistory();
+    }
+}
+
+// -- Other Handlers --
+
 function handleStudioTabSwitch(targetTab: 'edit' | 'generate') {
     if (targetTab === 'edit') {
         studioTabEdit.classList.add('active');
@@ -1117,20 +1187,17 @@ function handleStudioImageUpload(files: FileList | null) {
 
         const reader = new FileReader();
         reader.onload = (e) => {
-            studioCurrentImageSrc = e.target?.result as string;
-            studioImageOutput.src = studioCurrentImageSrc;
-
-            // Wait for image to load before setting canvas size
-            studioImageOutput.onload = () => {
-                studioTextCanvas.width = studioImageOutput.naturalWidth;
-                studioTextCanvas.height = studioImageOutput.naturalHeight;
-                renderTextOnCanvas(); // Initial render
-            };
+            const imageDataUrl = e.target?.result as string;
+            // Reset history and add the new upload as the first state
+            studioImageHistory = [];
+            studioHistoryIndex = -1;
+            addHistoryState(imageDataUrl);
             
             studioResultContainer.classList.remove('hidden');
             studioOutputPlaceholder.classList.add('hidden');
             studioDownloadControls.classList.remove('hidden');
             adjustmentControls.classList.remove('hidden');
+            aiEditSection.classList.remove('hidden');
         };
         reader.readAsDataURL(file);
     }
@@ -1244,6 +1311,93 @@ function handleTextPositionUpdate(event: Event) {
     });
     
     renderTextOnCanvas();
+}
+
+async function handleEnhanceAiEditPromptClick() {
+    if (isEnhancing || !aiEditPromptInput.value.trim()) return;
+
+    isEnhancing = true;
+    enhanceAiEditBtn.disabled = true;
+    enhanceAiEditBtn.classList.add('loading');
+    
+    const currentText = aiEditPromptInput.value.trim();
+    const enhancePrompt = `You are a prompt enhancer for an AI image editor. Rewrite the following user description into a clear, specific, and effective editing instruction. Return only the enhanced instruction, with no introductory text.\n\nUser's Edit Request: "${currentText}"`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: enhancePrompt,
+        });
+        
+        const newText = response.text.trim();
+        if (newText) {
+            aiEditPromptInput.value = newText;
+        } else {
+            showError("The AI couldn't enhance the description. Please try a different one.", true);
+        }
+    } catch (error) {
+        parseAndShowError(error, true);
+    } finally {
+        isEnhancing = false;
+        enhanceAiEditBtn.classList.remove('loading');
+        enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim();
+    }
+}
+
+async function handleApplyAiEditClick() {
+    if (isApplyingAiEdit || !studioCurrentImageSrc || !aiEditPromptInput.value.trim()) return;
+
+    isApplyingAiEdit = true;
+    applyAiEditBtn.disabled = true;
+    applyAiEditBtn.classList.add('loading');
+    studioLoader.classList.remove('hidden');
+    studioLoaderText.textContent = 'Applying AI edit...';
+    studioResultContainer.classList.add('hidden'); // Hide current result while loading
+    studioErrorMessage.classList.add('hidden');
+
+    try {
+        const base64ImageData = studioCurrentImageSrc.split(',')[1];
+        const mimeType = studioCurrentImageSrc.substring(studioCurrentImageSrc.indexOf(':') + 1, studioCurrentImageSrc.indexOf(';'));
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash-image-preview',
+            contents: {
+                parts: [
+                    { inlineData: { data: base64ImageData, mimeType: mimeType } },
+                    { text: aiEditPromptInput.value.trim() },
+                ],
+            },
+            config: {
+                responseModalities: [Modality.IMAGE, Modality.TEXT],
+            },
+        });
+
+        let foundImage = false;
+        if (response.candidates && response.candidates.length > 0) {
+            for (const part of response.candidates[0].content.parts) {
+                if (part.inlineData) {
+                    const newBase64 = part.inlineData.data;
+                    const newMimeType = part.inlineData.mimeType;
+                    const newImageUrl = `data:${newMimeType};base64,${newBase64}`;
+                    addHistoryState(newImageUrl);
+                    foundImage = true;
+                    break;
+                }
+            }
+        }
+        
+        if (!foundImage) {
+            showError("The AI couldn't apply the edit. Please try a different description.", true);
+        }
+    } catch (error) {
+        parseAndShowError(error, true);
+    } finally {
+        isApplyingAiEdit = false;
+        applyAiEditBtn.disabled = false;
+        applyAiEditBtn.classList.remove('loading');
+        studioLoader.classList.add('hidden');
+        studioResultContainer.classList.remove('hidden'); // Show result container again
+    }
 }
 
 async function handleEnhanceImagePromptClick() {
@@ -1421,18 +1575,16 @@ async function handleGenerateImageClick() {
 
         if (response.generatedImages && response.generatedImages.length > 0) {
             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
-            studioCurrentImageSrc = `data:image/png;base64,${base64ImageBytes}`;
-            studioImageOutput.src = studioCurrentImageSrc;
+            const newImageDataUrl = `data:image/png;base64,${base64ImageBytes}`;
             
-            studioImageOutput.onload = () => {
-                studioTextCanvas.width = studioImageOutput.naturalWidth;
-                studioTextCanvas.height = studioImageOutput.naturalHeight;
-                renderTextOnCanvas();
-            };
+            studioImageHistory = [];
+            studioHistoryIndex = -1;
+            addHistoryState(newImageDataUrl);
 
             studioResultContainer.classList.remove('hidden');
             studioDownloadControls.classList.remove('hidden');
             adjustmentControls.classList.remove('hidden');
+            aiEditSection.classList.remove('hidden');
         } else {
             showError("The AI couldn't generate an image from that prompt. Please try refining it.", true);
         }
@@ -1574,6 +1726,10 @@ function initialize() {
     studioLogoUpload = document.getElementById('studio-logo-upload') as HTMLInputElement;
     studioUploadPlaceholder = document.getElementById('studio-upload-placeholder') as HTMLDivElement;
     adjustmentControls = document.querySelector('.adjustment-controls') as HTMLDivElement;
+    aiEditSection = document.getElementById('ai-edit-section') as HTMLDivElement;
+    aiEditPromptInput = document.getElementById('ai-edit-prompt-input') as HTMLTextAreaElement;
+    enhanceAiEditBtn = document.getElementById('enhance-ai-edit-btn') as HTMLButtonElement;
+    applyAiEditBtn = document.getElementById('apply-ai-edit-btn') as HTMLButtonElement;
     brightnessSlider = document.getElementById('brightness-slider') as HTMLInputElement;
     contrastSlider = document.getElementById('contrast-slider') as HTMLInputElement;
     saturateSlider = document.getElementById('saturate-slider') as HTMLInputElement;
@@ -1589,13 +1745,11 @@ function initialize() {
     imagePromptInput = document.getElementById('image-prompt-input') as HTMLTextAreaElement;
     enhanceImagePromptBtn = document.getElementById('enhance-image-prompt-btn') as HTMLButtonElement;
     styleChips = document.querySelectorAll('.style-chip');
-    // -- Image Size Selector --
     sizePresetChips = document.querySelectorAll('.size-preset-chip');
     customWidthInput = document.getElementById('custom-width-input') as HTMLInputElement;
     customHeightInput = document.getElementById('custom-height-input') as HTMLInputElement;
     aspectRatioLockToggle = document.getElementById('aspect-ratio-lock-toggle') as HTMLInputElement;
     sizePreviewBox = document.getElementById('size-preview-box') as HTMLDivElement;
-    // --
     generateImageBtn = document.getElementById('generate-image-btn') as HTMLButtonElement;
     studioOutputPlaceholder = document.getElementById('studio-output-placeholder') as HTMLDivElement;
     studioLoader = document.getElementById('studio-loader') as HTMLDivElement;
@@ -1603,6 +1757,8 @@ function initialize() {
     studioResultContainer = document.getElementById('studio-result-container') as HTMLDivElement;
     studioImageOutput = document.getElementById('studio-image-output') as HTMLImageElement;
     studioTextCanvas = document.getElementById('studio-text-canvas') as HTMLCanvasElement;
+    undoBtn = document.getElementById('undo-btn') as HTMLButtonElement;
+    redoBtn = document.getElementById('redo-btn') as HTMLButtonElement;
     studioDownloadControls = document.querySelector('.studio-download-controls') as HTMLDivElement;
     studioFormatSelect = document.getElementById('studio-format-select') as HTMLSelectElement;
     studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLAnchorElement;
@@ -1672,6 +1828,13 @@ function initialize() {
     saturateSlider.addEventListener('input', () => { studioImageFilters.saturate = parseInt(saturateSlider.value); applyStudioImageFilters(); });
     blurSlider.addEventListener('input', () => { studioImageFilters.blur = parseFloat(blurSlider.value); applyStudioImageFilters(); });
     
+    // AI Edit Listeners
+    aiEditPromptInput.addEventListener('input', () => {
+        enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim();
+    });
+    enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
+    applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
+
     // Text Overlay Listeners
     textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
     fontFamilySelect.addEventListener('input', handleTextStyleUpdate);
@@ -1707,13 +1870,16 @@ function initialize() {
             }
         });
     });
-    // -- Image Size Selector Listeners --
     sizePresetChips.forEach(chip => chip.addEventListener('click', handleSizePresetClick));
     customWidthInput.addEventListener('input', handleCustomDimensionInput);
     customHeightInput.addEventListener('input', handleCustomDimensionInput);
     aspectRatioLockToggle.addEventListener('change', handleAspectRatioLockToggle);
-    // --
     generateImageBtn.addEventListener('click', handleGenerateImageClick);
+    
+    // History Listeners
+    undoBtn.addEventListener('click', handleUndoClick);
+    redoBtn.addEventListener('click', handleRedoClick);
+
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
 
     // --- Final Setup ---

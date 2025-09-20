@@ -197,6 +197,7 @@ body[data-theme='dark'] .sun-icon { display: none; }
     justify-content: center;
     min-height: 600px;
     text-align: center;
+    position: relative; /* For positioning history buttons */
 }
 
 .preferences-bar {
@@ -232,14 +233,15 @@ body[data-theme='dark'] .sun-icon { display: none; }
 
 .input-container {
     position: relative;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
 textarea[id="prompt-input"],
 input[id="company-name-input"],
 textarea[id="contact-details-input"],
 textarea[id="image-prompt-input"],
-textarea[id="text-overlay-input"] {
+textarea[id="text-overlay-input"],
+textarea[id="ai-edit-prompt-input"] {
   width: 100%;
   background-color: var(--input-bg-color);
   color: var(--text-color);
@@ -261,7 +263,8 @@ textarea[id="prompt-input"]:focus,
 input[id="company-name-input"]:focus,
 textarea[id="contact-details-input"]:focus,
 textarea[id="image-prompt-input"]:focus,
-textarea[id="text-overlay-input"]:focus {
+textarea[id="text-overlay-input"]:focus,
+textarea[id="ai-edit-prompt-input"]:focus {
   outline: none;
   border-color: var(--primary-color);
   box-shadow: 0 0 0 3px var(--focus-ring-color);
@@ -582,6 +585,7 @@ textarea[id="text-overlay-input"]:focus {
   gap: 1rem;
   width: 100%;
   max-width: 350px;
+  margin-top: 1rem;
 }
 .format-select {
   background-color: var(--input-bg-color);
@@ -841,6 +845,35 @@ input[type="color"]::-webkit-color-swatch-wrapper {
 input[type="color"]::-webkit-color-swatch {
     border: none;
     border-radius: 4px;
+}
+
+/* AI Edit Section */
+#ai-edit-section {
+    border-top: 1px solid var(--border-color);
+    padding-top: 1.5rem;
+    margin-top: 1.5rem;
+}
+#ai-edit-section .btn-secondary {
+    width: 100%;
+    margin-top: 0.5rem;
+}
+
+/* History Controls */
+.history-controls {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    display: flex;
+    gap: 0.5rem;
+    background-color: var(--surface-color);
+    padding: 0.5rem;
+    border-radius: 50px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 10;
+}
+.history-controls .btn-icon {
+    position: static;
 }
 
 /* New Image Size Selector Styles */
