@@ -23,6 +23,7 @@ let imageStudioPage: HTMLDivElement;
 // -- Design Generator --
 let descriptionHeader: HTMLHeadingElement;
 let promptInput: HTMLTextAreaElement;
+let micDesignBtn: HTMLButtonElement;
 let enhancePromptBtn: HTMLButtonElement;
 let companyNameInput: HTMLInputElement;
 let contactDetailsInput: HTMLTextAreaElement;
@@ -88,6 +89,7 @@ let fontBoldBtn: HTMLButtonElement;
 let fontItalicBtn: HTMLButtonElement;
 let textPositionGrid: NodeListOf<HTMLDivElement>;
 let imagePromptInput: HTMLTextAreaElement;
+let micGenerateImageBtn: HTMLButtonElement;
 let enhanceImagePromptBtn: HTMLButtonElement;
 let styleChips: NodeListOf<HTMLDivElement>;
 let sizePresetChips: NodeListOf<HTMLButtonElement>;
@@ -156,6 +158,10 @@ let imageGenerationSize = {
 };
 let recognition: any | null = null;
 let isListening = false;
+let activeMic: {
+    input: HTMLTextAreaElement;
+    button: HTMLButtonElement;
+} | null = null;
 let isGeneratingImage = false;
 let isEnhancingImagePrompt = false;
 let isApplyingAiEdit = false;
@@ -1324,23 +1330,6 @@ function handleTextPositionUpdate(event: Event) {
     renderTextOnCanvas();
 }
 
-// --- Voice Input Handlers ---
-function handleMicClick() {
-    if (!recognition) return;
-
-    if (isListening) {
-        recognition.stop();
-    } else {
-        try {
-            recognition.start();
-        } catch (err) {
-            console.error("Speech recognition error:", err);
-            showError("Could not start voice recognition. Please check your microphone permissions.", true);
-        }
-    }
-}
-
-
 async function handleEnhanceAiEditPromptClick() {
     if (isEnhancing || !aiEditPromptInput.value.trim()) return;
 
@@ -1712,6 +1701,7 @@ function initialize() {
     // -- Design Generator --
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
+    micDesignBtn = document.getElementById('mic-design-btn') as HTMLButtonElement;
     enhancePromptBtn = document.getElementById('enhance-prompt-btn') as HTMLButtonElement;
     companyNameInput = document.getElementById('company-name-input') as HTMLInputElement;
     contactDetailsInput = document.getElementById('contact-details-input') as HTMLTextAreaElement;
@@ -1772,6 +1762,7 @@ function initialize() {
     fontItalicBtn = document.getElementById('font-italic-btn') as HTMLButtonElement;
     textPositionGrid = document.querySelectorAll('#text-position-grid .logo-position-option');
     imagePromptInput = document.getElementById('image-prompt-input') as HTMLTextAreaElement;
+    micGenerateImageBtn = document.getElementById('mic-generate-image-btn') as HTMLButtonElement;
     enhanceImagePromptBtn = document.getElementById('enhance-image-prompt-btn') as HTMLButtonElement;
     styleChips = document.querySelectorAll('.style-chip');
     sizePresetChips = document.querySelectorAll('.size-preset-chip');
@@ -1915,20 +1906,40 @@ function initialize() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
         recognition = new SpeechRecognition();
-        recognition.continuous = false;
+        recognition.continuous = true; // Keep listening until explicitly stopped.
         recognition.lang = 'en-US';
-        recognition.interimResults = false;
+        recognition.interimResults = true; // Show results as they are being spoken.
+
+        let initialText = ''; // To store text that was in the input before starting.
 
         recognition.onstart = () => {
             isListening = true;
-            micAiEditBtn.classList.add('listening');
-            micAiEditBtn.title = 'Stop Listening';
+            if (activeMic) {
+                initialText = activeMic.input.value; // Save current text.
+                activeMic.button.classList.add('listening');
+                activeMic.button.title = 'Stop Listening';
+                // Disable other mic buttons to prevent conflicting states.
+                [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
+                    if (btn && btn !== activeMic?.button) {
+                        btn.disabled = true;
+                    }
+                });
+            }
         };
 
         recognition.onend = () => {
             isListening = false;
-            micAiEditBtn.classList.remove('listening');
-            micAiEditBtn.title = 'Use Voice';
+            if (activeMic) {
+                activeMic.button.classList.remove('listening');
+                activeMic.button.title = 'Use Voice';
+                // Manually trigger input event for features like auto-save.
+                activeMic.input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+             // Re-enable all mic buttons.
+            [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
+                if (btn) btn.disabled = false;
+            });
+            activeMic = null;
         };
 
         recognition.onerror = (event: any) => {
@@ -1939,21 +1950,65 @@ function initialize() {
             } else if (event.error === 'no-speech') {
                 userMessage = 'No speech was detected. Please try again.';
             }
-            showError(userMessage, true);
+            const isStudio = imageStudioPage.classList.contains('active');
+            showError(userMessage, isStudio);
+            // Ensure cleanup happens even on error.
+            if (isListening) {
+                recognition.stop();
+            }
         };
 
         recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            aiEditPromptInput.value = transcript;
-            // Manually trigger input event to update dependent UI like the enhance button
-            aiEditPromptInput.dispatchEvent(new Event('input', { bubbles: true }));
+            if (!activeMic) return;
+
+            let interim_transcript = '';
+            let final_transcript = '';
+
+            // Iterate through all results received in this session.
+            for (let i = 0; i < event.results.length; ++i) {
+                const transcript_part = event.results[i][0].transcript;
+                if (event.results[i].isFinal) {
+                    final_transcript += transcript_part;
+                } else {
+                    interim_transcript += transcript_part;
+                }
+            }
+            
+            // Combine initial text with the full transcript so far.
+            const separator = initialText.trim().length > 0 && (final_transcript.length > 0 || interim_transcript.length > 0) ? ' ' : '';
+            activeMic.input.value = initialText + separator + final_transcript + interim_transcript;
         };
         
-        micAiEditBtn.addEventListener('click', handleMicClick);
+        const setupMicListener = (button: HTMLButtonElement, input: HTMLTextAreaElement) => {
+            if (!button) return;
+            button.addEventListener('click', () => {
+                // Toggle listening state.
+                if (isListening) {
+                    recognition.stop();
+                } else {
+                    activeMic = { input, button };
+                    try {
+                        recognition.start();
+                    } catch (err) {
+                        console.error("Speech recognition error on start:", err);
+                        const isStudio = imageStudioPage.classList.contains('active');
+                        showError("Could not start voice recognition.", isStudio);
+                        activeMic = null; // Clean up on failure.
+                    }
+                }
+            });
+        };
+
+        setupMicListener(micDesignBtn, promptInput);
+        setupMicListener(micAiEditBtn, aiEditPromptInput);
+        setupMicListener(micGenerateImageBtn, imagePromptInput);
 
     } else {
         console.warn('Speech Recognition not supported in this browser.');
-        micAiEditBtn.style.display = 'none'; // Hide the button if not supported
+        // Hide all microphone buttons if the API is not available.
+        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
+            if(btn) btn.style.display = 'none';
+        });
     }
 
     // --- Final Setup ---
