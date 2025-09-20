@@ -256,7 +256,7 @@ textarea[id="ai-edit-prompt-input"] {
 }
 .input-container textarea {
     margin-bottom: 0;
-    padding-right: 40px; /* Make space for the button */
+    padding-right: 80px; /* Make space for icon buttons */
 }
 
 textarea[id="prompt-input"]:focus,
@@ -270,10 +270,16 @@ textarea[id="ai-edit-prompt-input"]:focus {
   box-shadow: 0 0 0 3px var(--focus-ring-color);
 }
 
-.btn-icon {
+.input-actions {
     position: absolute;
     top: 8px;
     right: 8px;
+    display: flex;
+    gap: 0.25rem;
+}
+
+.btn-icon {
+    position: static;
     width: 32px;
     height: 32px;
     display: flex;
@@ -296,6 +302,16 @@ textarea[id="ai-edit-prompt-input"]:focus {
 }
 .btn-icon.loading svg {
     animation: spin 1s linear infinite;
+}
+.btn-icon.listening {
+    color: var(--error-color);
+    animation: pulse 1.5s cubic-bezier(0.66, 0, 0, 1) infinite;
+}
+
+@keyframes pulse {
+  to {
+    box-shadow: 0 0 0 12px rgba(229, 115, 115, 0);
+  }
 }
 
 #image-upload-area, #studio-image-upload-area {

@@ -1,6 +1,8 @@
 {
   "name": "3G Flyer Generator",
   "description": "Flyer Generator",
-  "requestFramePermissions": [],
+  "requestFramePermissions": [
+    "microphone"
+  ],
   "prompt": ""
 }

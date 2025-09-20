@@ -3,6 +3,14 @@ import { GoogleGenAI, Modality } from "@google/genai";
 // Since cropperjs is loaded from a CDN, we declare its type here to satisfy TypeScript
 declare var Cropper: any;
 
+// Add SpeechRecognition types to the global window object for cross-browser compatibility
+interface IWindow extends Window {
+  SpeechRecognition: any;
+  webkitSpeechRecognition: any;
+}
+declare const window: IWindow;
+
+
 // --- DOM ELEMENT VARIABLES (to be assigned in initialize) ---
 
 // -- App Shell --
@@ -63,6 +71,7 @@ let adjustmentControls: HTMLDivElement;
 // -- AI Edit elements --
 let aiEditSection: HTMLDivElement;
 let aiEditPromptInput: HTMLTextAreaElement;
+let micAiEditBtn: HTMLButtonElement;
 let enhanceAiEditBtn: HTMLButtonElement;
 let applyAiEditBtn: HTMLButtonElement;
 // --
@@ -145,6 +154,8 @@ let imageGenerationSize = {
     height: 1024,
     lockAspectRatio: true,
 };
+let recognition: any | null = null;
+let isListening = false;
 let isGeneratingImage = false;
 let isEnhancingImagePrompt = false;
 let isApplyingAiEdit = false;
@@ -1313,6 +1324,23 @@ function handleTextPositionUpdate(event: Event) {
     renderTextOnCanvas();
 }
 
+// --- Voice Input Handlers ---
+function handleMicClick() {
+    if (!recognition) return;
+
+    if (isListening) {
+        recognition.stop();
+    } else {
+        try {
+            recognition.start();
+        } catch (err) {
+            console.error("Speech recognition error:", err);
+            showError("Could not start voice recognition. Please check your microphone permissions.", true);
+        }
+    }
+}
+
+
 async function handleEnhanceAiEditPromptClick() {
     if (isEnhancing || !aiEditPromptInput.value.trim()) return;
 
@@ -1728,6 +1756,7 @@ function initialize() {
     adjustmentControls = document.querySelector('.adjustment-controls') as HTMLDivElement;
     aiEditSection = document.getElementById('ai-edit-section') as HTMLDivElement;
     aiEditPromptInput = document.getElementById('ai-edit-prompt-input') as HTMLTextAreaElement;
+    micAiEditBtn = document.getElementById('mic-ai-edit-btn') as HTMLButtonElement;
     enhanceAiEditBtn = document.getElementById('enhance-ai-edit-btn') as HTMLButtonElement;
     applyAiEditBtn = document.getElementById('apply-ai-edit-btn') as HTMLButtonElement;
     brightnessSlider = document.getElementById('brightness-slider') as HTMLInputElement;
@@ -1881,6 +1910,51 @@ function initialize() {
     redoBtn.addEventListener('click', handleRedoClick);
 
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
+
+    // --- Voice Recognition Setup ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+            isListening = true;
+            micAiEditBtn.classList.add('listening');
+            micAiEditBtn.title = 'Stop Listening';
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            micAiEditBtn.classList.remove('listening');
+            micAiEditBtn.title = 'Use Voice';
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            let userMessage = 'An error occurred during voice recognition.';
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                userMessage = 'Microphone access was denied. Please allow it in your browser settings.';
+            } else if (event.error === 'no-speech') {
+                userMessage = 'No speech was detected. Please try again.';
+            }
+            showError(userMessage, true);
+        };
+
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            aiEditPromptInput.value = transcript;
+            // Manually trigger input event to update dependent UI like the enhance button
+            aiEditPromptInput.dispatchEvent(new Event('input', { bubbles: true }));
+        };
+        
+        micAiEditBtn.addEventListener('click', handleMicClick);
+
+    } else {
+        console.warn('Speech Recognition not supported in this browser.');
+        micAiEditBtn.style.display = 'none'; // Hide the button if not supported
+    }
 
     // --- Final Setup ---
     loadTheme();
