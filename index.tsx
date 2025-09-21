@@ -17,8 +17,10 @@ declare const window: IWindow;
 let themeSwitcherBtn: HTMLButtonElement;
 let tabDesignGenerator: HTMLButtonElement;
 let tabImageStudio: HTMLButtonElement;
+let tabSocialManager: HTMLButtonElement;
 let designGeneratorPage: HTMLDivElement;
 let imageStudioPage: HTMLDivElement;
+let socialMediaManagerPage: HTMLDivElement;
 
 // -- Design Generator --
 let descriptionHeader: HTMLHeadingElement;
@@ -50,7 +52,8 @@ let loaderText: HTMLParagraphElement;
 let resultContainer: HTMLDivElement;
 let flyerOutput: HTMLImageElement;
 let downloadControls: HTMLDivElement;
-let downloadBtn: HTMLAnchorElement;
+let downloadBtn: HTMLButtonElement;
+let shareBtn: HTMLButtonElement;
 let formatSelect: HTMLSelectElement;
 let errorMessage: HTMLDivElement;
 
@@ -59,6 +62,14 @@ let cropModal: HTMLDivElement;
 let imageToCrop: HTMLImageElement;
 let applyCropBtn: HTMLButtonElement;
 let cancelCropBtn: HTMLButtonElement;
+
+// -- Share Modal elements --
+let shareModal: HTMLDivElement;
+let shareImagePreview: HTMLImageElement;
+let shareCaptionInput: HTMLTextAreaElement;
+let generateCaptionBtn: HTMLButtonElement;
+let shareNowBtn: HTMLButtonElement;
+let cancelShareBtn: HTMLButtonElement;
 
 // -- Image Studio --
 let studioTabEdit: HTMLButtonElement;
@@ -115,9 +126,61 @@ let redoBtn: HTMLButtonElement;
 // --
 let studioDownloadControls: HTMLDivElement;
 let studioFormatSelect: HTMLSelectElement;
-let studioDownloadBtn: HTMLAnchorElement;
+let studioDownloadBtn: HTMLButtonElement;
+let studioShareBtn: HTMLButtonElement;
 let studioErrorMessage: HTMLDivElement;
 
+// -- Social Media Manager --
+let businessSelect: HTMLSelectElement;
+let manageBusinessesBtn: HTMLButtonElement;
+let socialTopicInput: HTMLTextAreaElement;
+let brainstormIdeasBtn: HTMLButtonElement;
+let socialToneSelect: HTMLSelectElement;
+let socialPlatformsContainer: HTMLDivElement;
+let selectAllPlatformsBtn: HTMLButtonElement;
+let generateSocialBtn: HTMLButtonElement;
+let generateRepliesBtn: HTMLButtonElement;
+let socialTabCreate: HTMLButtonElement;
+let socialTabScheduled: HTMLButtonElement;
+let socialCreatePanel: HTMLDivElement;
+let socialScheduledPanel: HTMLDivElement;
+let socialOutputPlaceholder: HTMLDivElement;
+let socialLoader: HTMLDivElement;
+let socialResultsContainer: HTMLDivElement;
+let socialScheduleControls: HTMLDivElement;
+let scheduleDateInput: HTMLInputElement;
+let suggestTimeBtn: HTMLButtonElement;
+let schedulePostsBtn: HTMLButtonElement;
+let socialErrorMessage: HTMLDivElement;
+let scheduledPostsContainer: HTMLDivElement;
+let businessManagerModal: HTMLDivElement;
+let businessListContainer: HTMLDivElement;
+let businessForm: HTMLFormElement;
+let businessIdInput: HTMLInputElement;
+let businessNameInput: HTMLInputElement;
+let businessSocialGeneralInput: HTMLInputElement;
+let businessSocialLinkedinInput: HTMLInputElement;
+let businessSocialTwitterInput: HTMLInputElement;
+let businessSocialInstagramInput: HTMLInputElement;
+let businessSocialFacebookInput: HTMLInputElement;
+let businessSocialRedditInput: HTMLInputElement;
+let cancelBusinessEditBtn: HTMLButtonElement;
+let brainstormModal: HTMLDivElement;
+let brainstormResultsContainer: HTMLDivElement;
+let closeBrainstormBtn: HTMLButtonElement;
+let generateBrainstormIdeasBtn: HTMLButtonElement;
+let replyGeneratorModal: HTMLDivElement;
+let replyOriginalText: HTMLTextAreaElement;
+let replyToneSelect: HTMLSelectElement;
+let replyResultsContainer: HTMLDivElement;
+let closeReplyModalBtn: HTMLButtonElement;
+let generateReplyBtn: HTMLButtonElement;
+let refinePostModal: HTMLDivElement;
+let refineOriginalText: HTMLParagraphElement;
+let refineActionsContainer: HTMLDivElement;
+let refineCustomInstruction: HTMLTextAreaElement;
+let cancelRefineBtn: HTMLButtonElement;
+let refineNowBtn: HTMLButtonElement;
 
 // --- STATE ---
 // Design Generator State
@@ -175,15 +238,49 @@ let isEnhancingImagePrompt = false;
 let isApplyingAiEdit = false;
 let isMerging = false;
 
+// Share Modal State
+let isGeneratingCaption = false;
+let currentImageToShare: string | null = null;
+let shareContextPrompt: string | null = null;
+
+// Social Media Manager State
+type Business = { 
+    id: number;
+    name: string;
+    socials: { [key: string]: string };
+};
+let businesses: Business[] = [];
+let selectedBusinessId: number | null = null;
+let selectedPlatforms = new Set<string>();
+let generatedSocialContent: any[] = [];
+let scheduledPosts: any[] = [];
+let isGeneratingSocial = false;
+let isBrainstorming = false;
+let isGeneratingReplies = false;
+let isRefiningPost = false;
+let postToRefine: { platform: string; text: string; } | null = null;
+
+
 // Shared State
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
 const STUDIO_PREFERENCES_KEY = 'imageStudioPrefs';
+const SOCIAL_PREFERENCES_KEY = 'socialManagerPrefs';
 const THEME_KEY = 'flyergen-theme';
 const LAST_TAB_KEY = 'flyergen-last-tab';
 
 
 // --- GEMINI SETUP ---
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// --- CONSTANTS ---
+const platforms = [
+    { name: 'LinkedIn', key: 'linkedin', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>` },
+    { name: 'X / Twitter', key: 'twitter', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>` },
+    { name: 'Instagram', key: 'instagram', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>` },
+    { name: 'Facebook', key: 'facebook', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>` },
+    { name: 'Reddit', key: 'reddit', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm2-8.8H9c0-1.1.9-2 2-2s2 .9 2 2z"/><path d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm2-8.8H9c0-1.1.9-2 2-2s2 .9 2 2zM16 12c0 .8-.4 1.5-.9 1.9.1.5.1 1.1 0 1.6-.2.6-.5 1.2-1 1.7-.5.5-1.1.8-1.7 1-.6.2-1.2.2-1.8.1-.5 0-1-.1-1.5-.3-.5-.2-1-.4-1.4-.8-.4-.4-.8-.8-1.1-1.3s-.5-1-.6-1.5c-.1-.5-.1-1.1 0-1.6.5-.4.9-1.1.9-1.9 0-1.1-.9-2-2-2H8v-2h2c1.1 0 2-.9 2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2h-1c-.6 0-1 .4-1 1s.4 1 1 1h2c1.1 0 2 .9 2 2z"/></svg>` },
+];
+
 
 // --- HELPER FUNCTIONS ---
 
@@ -326,13 +423,13 @@ function showResult(imageDataUrl: string) {
     if (downloadControls) downloadControls.classList.remove('hidden');
 }
 
-function showError(message: string, isStudioError = false) {
-    hideLoading();
-    const errorEl = isStudioError ? studioErrorMessage : errorMessage;
-    if (isStudioError) {
-        studioLoader.classList.add('hidden');
-    }
+function showError(message: string, targetErrorEl?: HTMLDivElement) {
+    hideLoading(); // For design generator
+    if (studioLoader) studioLoader.classList.add('hidden'); // For studio
+    if (socialLoader) socialLoader.classList.add('hidden'); // For social
 
+    const errorEl = targetErrorEl || errorMessage; // Default to design generator error
+    
     if (errorEl) {
         errorEl.textContent = message;
         errorEl.classList.remove('hidden');
@@ -362,24 +459,24 @@ function loadTheme() {
     }
 }
 
-function switchAppTab(targetTab: 'design' | 'studio') {
+function switchAppTab(targetTab: 'design' | 'studio' | 'social') {
+    const tabs = [tabDesignGenerator, tabImageStudio, tabSocialManager];
+    const pages = [designGeneratorPage, imageStudioPage, socialMediaManagerPage];
+    
+    tabs.forEach(tab => tab.classList.remove('active'));
+    pages.forEach(page => page.classList.add('hidden'));
+
     if (targetTab === 'design') {
         tabDesignGenerator.classList.add('active');
-        tabImageStudio.classList.remove('active');
-        designGeneratorPage.classList.add('active');
-        imageStudioPage.classList.remove('hidden'); // Use hidden for studio
-        imageStudioPage.classList.remove('active');
         designGeneratorPage.classList.remove('hidden');
-
-    } else {
-        tabDesignGenerator.classList.remove('active');
+    } else if (targetTab === 'studio') {
         tabImageStudio.classList.add('active');
-        designGeneratorPage.classList.remove('active');
-        designGeneratorPage.classList.add('hidden');
-        imageStudioPage.classList.add('active');
         imageStudioPage.classList.remove('hidden');
-
+    } else if (targetTab === 'social') {
+        tabSocialManager.classList.add('active');
+        socialMediaManagerPage.classList.remove('hidden');
     }
+
     localStorage.setItem(LAST_TAB_KEY, targetTab);
 }
 
@@ -836,7 +933,7 @@ function handleTextEffectSelection(event: Event) {
 /**
  * Parses an error from the AI API and displays a user-friendly message.
  */
-function parseAndShowError(error: unknown, isStudioError = false) {
+function parseAndShowError(error: unknown, targetErrorEl?: HTMLDivElement) {
     console.error("AI Generation Error:", error);
 
     let userMessage = "An unexpected error occurred. Please check the console for details and try again.";
@@ -858,7 +955,7 @@ function parseAndShowError(error: unknown, isStudioError = false) {
         }
     }
     
-    showError(userMessage, isStudioError);
+    showError(userMessage, targetErrorEl);
 }
 
 async function handleGenerateClick() {
@@ -1128,6 +1225,139 @@ async function handleDownloadClick(event: MouseEvent) {
 }
 
 
+// --- SHARE MODAL FUNCTIONS ---
+
+/**
+ * Converts a data URL string into a File object.
+ */
+async function dataURLtoFile(dataUrl: string, filename: string): Promise<File | null> {
+    try {
+        const res = await fetch(dataUrl);
+        const blob = await res.blob();
+        return new File([blob], filename, { type: blob.type });
+    } catch (error) {
+        console.error("Error converting data URL to file:", error);
+        return null;
+    }
+}
+
+function openShareModal(context: 'design' | 'studio') {
+    let imageDataUrl: string | null = null;
+    let prompt: string | null = null;
+
+    if (context === 'design') {
+        imageDataUrl = flyerOutput.src;
+        prompt = promptInput.value;
+    } else { // context === 'studio'
+        imageDataUrl = studioCurrentImageSrc;
+        // In studio, prefer the generation prompt, fallback to AI edit prompt
+        prompt = imagePromptInput.value || aiEditPromptInput.value;
+    }
+
+    if (!imageDataUrl || !imageDataUrl.startsWith('data:image')) {
+        showError("No image available to share.", context === 'studio' ? studioErrorMessage : errorMessage);
+        return;
+    }
+
+    currentImageToShare = imageDataUrl;
+    shareContextPrompt = prompt;
+
+    shareImagePreview.src = imageDataUrl;
+    shareCaptionInput.value = '';
+    
+    // Disable caption generation if there's no prompt context
+    const genCaptionBtnSpan = generateCaptionBtn.querySelector('span');
+    if (genCaptionBtnSpan) genCaptionBtnSpan.textContent = 'Generate Caption';
+    generateCaptionBtn.disabled = !shareContextPrompt?.trim();
+
+    shareModal.classList.remove('hidden');
+}
+
+function closeShareModal() {
+    shareModal.classList.add('hidden');
+    currentImageToShare = null;
+    shareContextPrompt = null;
+}
+
+async function handleGenerateCaptionClick() {
+    if (isGeneratingCaption || !shareContextPrompt) return;
+
+    isGeneratingCaption = true;
+    generateCaptionBtn.disabled = true;
+    generateCaptionBtn.classList.add('loading');
+    const genCaptionBtnSpan = generateCaptionBtn.querySelector('span');
+    if(genCaptionBtnSpan) genCaptionBtnSpan.textContent = 'Generating...';
+
+    const captionPrompt = `Generate a short, engaging social media caption for a design that was created with this description: "${shareContextPrompt}". Include relevant hashtags. The caption should be exciting and encourage engagement.`;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: captionPrompt,
+        });
+        const newCaption = response.text.trim();
+        if (newCaption) {
+            shareCaptionInput.value = newCaption;
+        } else {
+            showError("The AI couldn't generate a caption. Please try again.", socialMediaManagerPage.classList.contains('active') ? socialErrorMessage : studioErrorMessage);
+        }
+    } catch (error) {
+        parseAndShowError(error, socialMediaManagerPage.classList.contains('active') ? socialErrorMessage : studioErrorMessage);
+    } finally {
+        isGeneratingCaption = false;
+        generateCaptionBtn.classList.remove('loading');
+        if (genCaptionBtnSpan) genCaptionBtnSpan.textContent = 'Generate Caption';
+        // Re-enable if there is still context
+        generateCaptionBtn.disabled = !shareContextPrompt;
+    }
+}
+
+async function handleShareNowClick() {
+    if (!currentImageToShare) {
+        alert("No image to share.");
+        return;
+    }
+
+    // Check for Web Share API support
+    if (!navigator.share) {
+        alert("Your browser doesn't support the Web Share API. Please download the image to share it manually.");
+        return;
+    }
+    
+    const caption = shareCaptionInput.value;
+    const format = currentImageToShare.includes('jpeg') ? 'jpg' : 'png';
+    const imageFile = await dataURLtoFile(currentImageToShare, `design-export.${format}`);
+
+    if (!imageFile) {
+        alert("Could not prepare image for sharing.");
+        return;
+    }
+    
+    const shareData = {
+        text: caption,
+        files: [imageFile],
+        title: 'My AI-Generated Design'
+    };
+
+    // Check if the browser can share this data
+    if (!navigator.canShare(shareData)) {
+        alert("Your browser cannot share this type of file.");
+        return;
+    }
+
+    try {
+        await navigator.share(shareData);
+        console.log("Shared successfully");
+        closeShareModal();
+    } catch (error) {
+        if (error instanceof Error && error.name !== 'AbortError') {
+            console.error("Sharing failed:", error);
+            alert(`Sharing failed: ${error.message}`);
+        }
+    }
+}
+
+
 // --- EVENT HANDLERS (Image Studio) ---
 
 // -- History Management --
@@ -1306,7 +1536,7 @@ function handleStudioImageUpload(files: FileList | null) {
     if (files && files.length > 0) {
         const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
         if (validFiles.length === 0) {
-             showError('Please select valid image files (JPG, PNG, WEBP).', true);
+             showError('Please select valid image files (JPG, PNG, WEBP).', studioErrorMessage);
              return;
         }
 
@@ -1462,10 +1692,10 @@ async function handleEnhanceAiEditPromptClick() {
         if (newText) {
             aiEditPromptInput.value = newText;
         } else {
-            showError("The AI couldn't enhance the description. Please try a different one.", true);
+            showError("The AI couldn't enhance the description. Please try a different one.", studioErrorMessage);
         }
     } catch (error) {
-        parseAndShowError(error, true);
+        parseAndShowError(error, studioErrorMessage);
     } finally {
         isEnhancing = false;
         enhanceAiEditBtn.classList.remove('loading');
@@ -1516,10 +1746,10 @@ async function handleApplyAiEditClick() {
         }
         
         if (!foundImage) {
-            showError("The AI couldn't apply the edit. Please try a different description.", true);
+            showError("The AI couldn't apply the edit. Please try a different description.", studioErrorMessage);
         }
     } catch (error) {
-        parseAndShowError(error, true);
+        parseAndShowError(error, studioErrorMessage);
     } finally {
         isApplyingAiEdit = false;
         applyAiEditBtn.disabled = false;
@@ -1534,7 +1764,7 @@ async function handleMergeImagesClick() {
 
     const prompt = mergePromptInput.value.trim();
     if (!prompt) {
-        showError("Please describe how you want to merge the images.", true);
+        showError("Please describe how you want to merge the images.", studioErrorMessage);
         return;
     }
 
@@ -1585,11 +1815,11 @@ async function handleMergeImagesClick() {
         }
         
         if (!foundImage) {
-            showError("The AI couldn't merge the images. Please try a different prompt.", true);
+            showError("The AI couldn't merge the images. Please try a different prompt.", studioErrorMessage);
         }
 
     } catch (error) {
-        parseAndShowError(error, true);
+        parseAndShowError(error, studioErrorMessage);
     } finally {
         isMerging = false;
         mergeImagesBtn.disabled = false;
@@ -1621,10 +1851,10 @@ async function handleEnhanceImagePromptClick() {
         if (newText) {
             imagePromptInput.value = newText;
         } else {
-            showError("The AI couldn't enhance the description. Please try a different one.", true);
+            showError("The AI couldn't enhance the description. Please try a different one.", studioErrorMessage);
         }
     } catch (error) {
-        parseAndShowError(error, true);
+        parseAndShowError(error, studioErrorMessage);
     } finally {
         isEnhancingImagePrompt = false;
         enhanceImagePromptBtn.classList.remove('loading');
@@ -1743,7 +1973,7 @@ async function handleGenerateImageClick() {
 
     const prompt = imagePromptInput.value.trim();
     if (!prompt) {
-        showError("Please enter a description for the image you want to create.", true);
+        showError("Please enter a description for the image you want to create.", studioErrorMessage);
         return;
     }
 
@@ -1789,11 +2019,11 @@ async function handleGenerateImageClick() {
             handleStudioTabSwitch('edit');
 
         } else {
-            showError("The AI couldn't generate an image from that prompt. Please try refining it.", true);
+            showError("The AI couldn't generate an image from that prompt. Please try refining it.", studioErrorMessage);
         }
 
     } catch (error) {
-        parseAndShowError(error, true);
+        parseAndShowError(error, studioErrorMessage);
     } finally {
         isGeneratingImage = false;
         generateImageBtn.disabled = false;
@@ -1805,7 +2035,7 @@ async function handleGenerateImageClick() {
 async function handleExportImageClick(event: MouseEvent) {
     event.preventDefault();
     if (!studioCurrentImageSrc) {
-        showError("There is no image to export.", true);
+        showError("There is no image to export.", studioErrorMessage);
         return;
     }
 
@@ -1865,13 +2095,542 @@ async function handleExportImageClick(event: MouseEvent) {
 
     } catch (error) {
         console.error("Export failed:", error);
-        showError("Sorry, the image could not be exported.", true);
+        showError("Sorry, the image could not be exported.", studioErrorMessage);
     } finally {
         studioDownloadBtn.textContent = originalButtonText;
         studioDownloadBtn.classList.remove('disabled');
     }
 }
 
+// --- SOCIAL MEDIA MANAGER FUNCTIONS ---
+
+// --- Business Management ---
+function saveSocialPrefs() {
+    const prefs = { businesses, scheduledPosts, selectedBusinessId };
+    localStorage.setItem(SOCIAL_PREFERENCES_KEY, JSON.stringify(prefs));
+}
+
+function loadSocialPrefs() {
+    const prefsString = localStorage.getItem(SOCIAL_PREFERENCES_KEY);
+    if (prefsString) {
+        const prefs = JSON.parse(prefsString);
+        businesses = prefs.businesses || [];
+        scheduledPosts = (prefs.scheduledPosts || []).map((p: any) => ({...p, scheduleTime: new Date(p.scheduleTime)}));
+        selectedBusinessId = prefs.selectedBusinessId || (businesses.length > 0 ? businesses[0].id : null);
+    } else {
+        // Add default if none exist
+        businesses = [{ id: 1, name: 'Default Business', socials: {} }];
+        selectedBusinessId = 1;
+    }
+    renderBusinessSelect();
+    renderScheduledPosts();
+}
+
+function renderBusinessSelect() {
+    businessSelect.innerHTML = '';
+    if (businesses.length === 0) {
+        const option = document.createElement('option');
+        option.textContent = 'No businesses configured';
+        businessSelect.appendChild(option);
+        businessSelect.disabled = true;
+    } else {
+        businessSelect.disabled = false;
+        businesses.forEach(b => {
+            const option = document.createElement('option');
+            option.value = String(b.id);
+            option.textContent = b.name;
+            if (b.id === selectedBusinessId) {
+                option.selected = true;
+            }
+            businessSelect.appendChild(option);
+        });
+    }
+}
+
+function openBusinessManagerModal() {
+    renderBusinessManagerList();
+    resetBusinessForm();
+    businessManagerModal.classList.remove('hidden');
+}
+
+function closeBusinessManagerModal() {
+    businessManagerModal.classList.add('hidden');
+}
+
+function renderBusinessManagerList() {
+    businessListContainer.innerHTML = '';
+    businesses.forEach(business => {
+        const item = document.createElement('div');
+        item.className = 'business-item';
+        item.innerHTML = `
+            <span>${business.name}</span>
+            <div class="pref-buttons">
+                <button class="btn btn-secondary edit-btn" data-id="${business.id}">Edit</button>
+                <button class="btn btn-secondary delete-btn" data-id="${business.id}">Delete</button>
+            </div>
+        `;
+        businessListContainer.appendChild(item);
+    });
+}
+
+function resetBusinessForm() {
+    businessForm.reset();
+    businessIdInput.value = '';
+}
+
+function handleEditBusinessClick(id: number) {
+    const business = businesses.find(b => b.id === id);
+    if (business) {
+        businessIdInput.value = String(business.id);
+        businessNameInput.value = business.name;
+        businessSocialGeneralInput.value = business.socials.general || '';
+        businessSocialLinkedinInput.value = business.socials.linkedin || '';
+        businessSocialTwitterInput.value = business.socials.twitter || '';
+        businessSocialInstagramInput.value = business.socials.instagram || '';
+        businessSocialFacebookInput.value = business.socials.facebook || '';
+        businessSocialRedditInput.value = business.socials.reddit || '';
+    }
+}
+
+function handleDeleteBusinessClick(id: number) {
+    if (confirm('Are you sure you want to delete this business?')) {
+        businesses = businesses.filter(b => b.id !== id);
+        if (selectedBusinessId === id) {
+            selectedBusinessId = businesses.length > 0 ? businesses[0].id : null;
+        }
+        saveSocialPrefs();
+        renderBusinessSelect();
+        renderBusinessManagerList();
+    }
+}
+
+function handleBusinessFormSubmit(event: Event) {
+    event.preventDefault();
+    const id = parseInt(businessIdInput.value);
+    const businessData = {
+        name: businessNameInput.value,
+        socials: {
+            general: businessSocialGeneralInput.value,
+            linkedin: businessSocialLinkedinInput.value,
+            twitter: businessSocialTwitterInput.value,
+            instagram: businessSocialInstagramInput.value,
+            facebook: businessSocialFacebookInput.value,
+            reddit: businessSocialRedditInput.value,
+        }
+    };
+
+    if (id) {
+        businesses = businesses.map(b => b.id === id ? { ...b, ...businessData } : b);
+    } else {
+        const newBusiness = { ...businessData, id: Date.now() };
+        businesses.push(newBusiness);
+        selectedBusinessId = newBusiness.id;
+    }
+    saveSocialPrefs();
+    renderBusinessSelect();
+    renderBusinessManagerList();
+    resetBusinessForm();
+}
+
+// --- Social Content Generation ---
+
+function openBrainstormModal() {
+    brainstormResultsContainer.innerHTML = ''; // Clear previous results
+    brainstormModal.classList.remove('hidden');
+}
+function closeBrainstormModal() {
+    brainstormModal.classList.add('hidden');
+}
+
+async function handleBrainstormClick() {
+    if (isBrainstorming) return;
+    isBrainstorming = true;
+    
+    const generateBtnOriginalText = generateBrainstormIdeasBtn.innerHTML;
+    generateBrainstormIdeasBtn.innerHTML = `<div class="loading-spinner" style="width:20px;height:20px;border-width:2px;"></div>`;
+    generateBrainstormIdeasBtn.disabled = true;
+    
+    try {
+        const business = businesses.find(b => b.id === selectedBusinessId);
+        const prompt = `Brainstorm 5 engaging social media post ideas for a business named "${business?.name}". The ideas should be creative and tailored to a general audience. Format the output as a numbered list.`;
+        
+        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+        const ideasText = response.text.trim();
+        
+        brainstormResultsContainer.innerHTML = ''; // Clear before adding new ideas
+        ideasText.split(/\d+\.\s/g).filter(idea => idea.trim()).forEach(idea => {
+            const ideaEl = document.createElement('div');
+            ideaEl.className = 'brainstorm-idea';
+            ideaEl.textContent = idea.trim();
+            ideaEl.onclick = () => {
+                socialTopicInput.value = idea.trim();
+                closeBrainstormModal();
+            };
+            brainstormResultsContainer.appendChild(ideaEl);
+        });
+
+    } catch(error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isBrainstorming = false;
+        generateBrainstormIdeasBtn.innerHTML = generateBtnOriginalText;
+        generateBrainstormIdeasBtn.disabled = false;
+    }
+}
+
+function openReplyModal() {
+    replyGeneratorModal.classList.remove('hidden');
+    replyResultsContainer.innerHTML = '';
+    replyOriginalText.value = '';
+}
+function closeReplyModal() {
+    replyGeneratorModal.classList.add('hidden');
+}
+
+async function handleGenerateReplies() {
+    if(isGeneratingReplies || !replyOriginalText.value.trim()) return;
+    
+    isGeneratingReplies = true;
+    const generateBtnOriginalText = generateReplyBtn.innerHTML;
+    generateReplyBtn.innerHTML = `<div class="loading-spinner" style="width:20px;height:20px;border-width:2px;"></div>`;
+    generateReplyBtn.disabled = true;
+    
+    try {
+        const tone = replyToneSelect.value;
+        const originalPost = replyOriginalText.value;
+        const prompt = `Generate 3 potential replies to the following social media comment/post. The replies should be in a ${tone} tone. The original comment is:\n\n"${originalPost}"`;
+
+        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+        const repliesText = response.text.trim();
+        
+        replyResultsContainer.innerHTML = ''; // Clear before adding new replies
+        repliesText.split(/\d+\.\s/g).filter(reply => reply.trim()).forEach(reply => {
+            const replyEl = document.createElement('div');
+            replyEl.className = 'generated-reply';
+            replyEl.textContent = reply.trim();
+            replyEl.onclick = () => {
+                navigator.clipboard.writeText(reply.trim());
+                alert('Reply copied to clipboard!');
+            };
+            replyResultsContainer.appendChild(replyEl);
+        });
+
+    } catch(error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isGeneratingReplies = false;
+        generateReplyBtn.innerHTML = generateBtnOriginalText;
+        generateReplyBtn.disabled = false;
+    }
+}
+
+function openRefineModal(platform: string) {
+    const content = generatedSocialContent.find(c => c.platform === platform);
+    if (!content) return;
+
+    postToRefine = { platform: content.platform, text: content.text };
+    refineOriginalText.textContent = content.text;
+    refineCustomInstruction.value = '';
+
+    // Reset selection state of preset buttons
+    refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => {
+        chip.classList.remove('selected');
+    });
+
+    refinePostModal.classList.remove('hidden');
+}
+
+function closeRefineModal() {
+    refinePostModal.classList.add('hidden');
+    postToRefine = null;
+}
+
+async function handleRefinePostClick() {
+    if (isRefiningPost || !postToRefine) return;
+
+    const selectedChip = refineActionsContainer.querySelector('.style-chip.selected');
+    const instruction = refineCustomInstruction.value.trim() || selectedChip?.getAttribute('data-instruction');
+
+    if (!instruction) {
+        showError("Please select or enter a refinement instruction.", socialErrorMessage);
+        return;
+    }
+    
+    isRefiningPost = true;
+    refineNowBtn.disabled = true;
+    refineNowBtn.classList.add('loading');
+    
+    try {
+        const { platform, text } = postToRefine;
+        const prompt = `Refine the following social media post for ${platform}. The original post is:\n\n"${text}"\n\nPlease apply the following instruction: "${instruction}". Respond with ONLY the refined post text.`;
+        
+        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+        const refinedText = response.text.trim();
+        
+        // Find the index and update the content in the main array
+        const postIndex = generatedSocialContent.findIndex(p => p.platform === platform);
+        if (postIndex > -1) {
+            generatedSocialContent[postIndex].text = refinedText;
+        }
+
+        renderGeneratedSocialPosts();
+        closeRefineModal();
+
+    } catch(error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isRefiningPost = false;
+        refineNowBtn.disabled = false;
+        refineNowBtn.classList.remove('loading');
+    }
+}
+
+function handleSocialTabSwitch(target: 'create' | 'scheduled') {
+    socialTabCreate.classList.toggle('active', target === 'create');
+    socialTabScheduled.classList.toggle('active', target === 'scheduled');
+    socialCreatePanel.classList.toggle('active', target === 'create');
+    socialScheduledPanel.classList.toggle('active', target === 'scheduled');
+}
+
+function renderScheduledPosts() {
+    scheduledPostsContainer.innerHTML = '';
+    if (scheduledPosts.length === 0) {
+        scheduledPostsContainer.innerHTML = '<p>No posts scheduled yet.</p>';
+        return;
+    }
+
+    const sortedPosts = [...scheduledPosts].sort((a, b) => a.scheduleTime.getTime() - b.scheduleTime.getTime());
+    
+    sortedPosts.forEach(post => {
+        const postEl = document.createElement('div');
+        postEl.className = 'scheduled-post-item';
+        const scheduleTime = post.scheduleTime.toLocaleString();
+        postEl.innerHTML = `
+            <div class="scheduled-post-info">
+                <h5>${post.businessName} - ${post.platform}</h5>
+                <p><strong>Scheduled for:</strong> ${scheduleTime}</p>
+                <p>${post.text}</p>
+            </div>
+            <div class="scheduled-post-actions">
+                <button class="btn btn-secondary delete-scheduled-btn" data-id="${post.id}">Delete</button>
+            </div>
+        `;
+        scheduledPostsContainer.appendChild(postEl);
+    });
+}
+
+function renderSocialPlatforms() {
+    socialPlatformsContainer.innerHTML = '';
+    platforms.forEach(platform => {
+        const chip = document.createElement('button');
+        chip.className = 'style-chip';
+        chip.dataset.platform = platform.name;
+        chip.setAttribute('role', 'checkbox');
+        chip.setAttribute('aria-checked', 'false');
+        chip.innerHTML = `${platform.icon} <span>${platform.name}</span>`;
+
+        const svg = chip.querySelector('svg');
+        if (svg) {
+            svg.setAttribute('width', '20');
+            svg.setAttribute('height', '20');
+            svg.style.marginRight = '8px';
+            svg.style.flexShrink = '0';
+        }
+        
+        if (selectedPlatforms.has(platform.name)) {
+            chip.classList.add('selected');
+            chip.setAttribute('aria-checked', 'true');
+        }
+
+        chip.addEventListener('click', () => handlePlatformToggle(platform.name));
+        socialPlatformsContainer.appendChild(chip);
+    });
+}
+
+function handlePlatformToggle(platformName: string) {
+    const chip = socialPlatformsContainer.querySelector(`[data-platform="${platformName}"]`) as HTMLButtonElement;
+    if (selectedPlatforms.has(platformName)) {
+        selectedPlatforms.delete(platformName);
+        chip.classList.remove('selected');
+        chip.setAttribute('aria-checked', 'false');
+    } else {
+        selectedPlatforms.add(platformName);
+        chip.classList.add('selected');
+        chip.setAttribute('aria-checked', 'true');
+    }
+}
+
+function handleSelectAllPlatforms() {
+    const allSelected = selectedPlatforms.size === platforms.length;
+    
+    platforms.forEach(platform => {
+        const chip = socialPlatformsContainer.querySelector(`[data-platform="${platform.name}"]`) as HTMLButtonElement;
+        if (allSelected) {
+            selectedPlatforms.delete(platform.name);
+            chip.classList.remove('selected');
+            chip.setAttribute('aria-checked', 'false');
+        } else {
+            selectedPlatforms.add(platform.name);
+            chip.classList.add('selected');
+            chip.setAttribute('aria-checked', 'true');
+        }
+    });
+}
+
+async function handleGenerateSocialClick() {
+    if (isGeneratingSocial || selectedPlatforms.size === 0 || !socialTopicInput.value.trim()) {
+        showError("Please select a business, topic, and at least one platform.", socialErrorMessage);
+        return;
+    }
+
+    isGeneratingSocial = true;
+    generateSocialBtn.disabled = true;
+    generateSocialBtn.classList.add('loading');
+    socialLoader.classList.remove('hidden');
+    socialOutputPlaceholder.classList.add('hidden');
+    socialResultsContainer.innerHTML = '';
+    socialScheduleControls.classList.add('hidden');
+    socialErrorMessage.classList.add('hidden');
+
+    try {
+        const platformArr = Array.from(selectedPlatforms);
+        const needsImage = platformArr.some(p => ['Instagram', 'Facebook', 'LinkedIn'].includes(p));
+        let imageUrl: string | null = null;
+        
+        if (needsImage) {
+            const imagePrompt = `A modern, professional image for a social media post about: "${socialTopicInput.value.trim()}". Avoid text.`;
+            const imageResponse = await ai.models.generateImages({
+                model: 'imagen-4.0-generate-001',
+                prompt: imagePrompt,
+                config: { numberOfImages: 1, outputMimeType: 'image/png' },
+            });
+            if (imageResponse.generatedImages && imageResponse.generatedImages.length > 0) {
+                const base64ImageBytes = imageResponse.generatedImages[0].image.imageBytes;
+                imageUrl = `data:image/png;base64,${base64ImageBytes}`;
+            } else {
+                throw new Error('Image generation failed.');
+            }
+        }
+
+        const postPromises = platformArr.map(platform => generateSocialPostText(platform));
+        const postTexts = await Promise.all(postPromises);
+
+        generatedSocialContent = platformArr.map((platform, i) => ({
+            platform: platform,
+            text: postTexts[i],
+            image: ['Instagram', 'Facebook', 'LinkedIn'].includes(platform) ? imageUrl : null,
+        }));
+
+        renderGeneratedSocialPosts();
+
+    } catch (error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isGeneratingSocial = false;
+        generateSocialBtn.disabled = false;
+        generateSocialBtn.classList.remove('loading');
+        socialLoader.classList.add('hidden');
+    }
+}
+
+async function generateSocialPostText(platform: string): Promise<string> {
+    const business = businesses.find(b => b.id === selectedBusinessId);
+    const tone = socialToneSelect.value;
+    const topic = socialTopicInput.value.trim();
+    const platformInfo = platforms.find(p => p.name === platform);
+    const platformKey = platformInfo?.key || 'general';
+    const link = business?.socials[platformKey] || business?.socials.general || '';
+
+    const context = `For a business named "${business?.name}". ${link ? `Their relevant link is "${link}".` : ''}`;
+    const prompt = `Generate a ${tone} social media post for ${platform} about: "${topic}". ${context} Tailor the content and format specifically for the ${platform} platform. For X/Twitter, be concise and use hashtags. For LinkedIn, be professional. For Instagram, write a captivating caption. For Facebook, be conversational. For Reddit, use a "Title: [Your Title]\\n\\nBody: [Your Body Text]" format.`;
+    
+    const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+    return response.text.trim();
+}
+
+function renderGeneratedSocialPosts() {
+    socialResultsContainer.innerHTML = '';
+    if (generatedSocialContent.length === 0) {
+        socialOutputPlaceholder.classList.remove('hidden');
+        socialScheduleControls.classList.add('hidden');
+        return;
+    }
+
+    generatedSocialContent.forEach(content => {
+        const platformInfo = platforms.find(p => p.name === content.platform);
+        const card = document.createElement('div');
+        card.className = 'social-post-card';
+        
+        let imageHtml = '';
+        if (content.image) {
+            imageHtml = `<img src="${content.image}" alt="Generated image for social post" class="social-post-image">`;
+        }
+        
+        const cardHeaderIcon = platformInfo?.icon ? platformInfo.icon.replace('<svg', '<svg width="24" height="24"') : '';
+
+        card.innerHTML = `
+            <div class="social-post-header">
+                ${cardHeaderIcon}
+                <h4>${content.platform}</h4>
+            </div>
+            <div class="social-post-content">
+                <p>${content.text.replace(/\n/g, '<br>')}</p>
+                ${imageHtml}
+            </div>
+            <div class="social-post-actions">
+                 <button class="btn btn-secondary refine-post-btn" data-platform="${content.platform}">Refine</button>
+            </div>
+        `;
+        socialResultsContainer.appendChild(card);
+    });
+
+    socialScheduleControls.classList.remove('hidden');
+}
+
+async function handleSuggestTimeClick() {
+    if (selectedPlatforms.size !== 1) {
+        alert("Please select exactly one platform to get a time suggestion.");
+        return;
+    }
+    const platform = Array.from(selectedPlatforms)[0];
+    const topic = socialTopicInput.value.trim();
+    const prompt = `As a social media expert, what is the absolute best day and time to post on ${platform} about "${topic}" to maximize engagement? Consider typical user behavior. Respond ONLY with a date-time string in the format YYYY-MM-DDTHH:mm for the next optimal slot this coming week. Current date: ${new Date().toISOString()}`;
+    
+    try {
+        const response = await ai.models.generateContent({model: 'gemini-2.5-flash', contents: prompt});
+        const timeStr = response.text.trim();
+        const suggestedDate = new Date(timeStr);
+        if (!isNaN(suggestedDate.getTime())) {
+             scheduleDateInput.value = timeStr;
+        } else {
+            throw new Error("Invalid date format from API.");
+        }
+    } catch (err) {
+        console.error("Failed to suggest time:", err);
+        alert("Could not suggest a time. Please try again.");
+    }
+}
+
+function handleSchedulePostsClick() {
+    if (generatedSocialContent.length === 0) return;
+    const business = businesses.find(b => b.id === selectedBusinessId);
+    
+    const newPosts = generatedSocialContent.map(post => ({
+        id: Date.now() + Math.random(),
+        ...post,
+        topic: socialTopicInput.value.trim(),
+        businessName: business?.name || 'Unassigned',
+        scheduleTime: new Date(scheduleDateInput.value),
+    }));
+
+    scheduledPosts.push(...newPosts);
+    saveSocialPrefs();
+    renderScheduledPosts();
+    
+    generatedSocialContent = [];
+    renderGeneratedSocialPosts();
+    handleSocialTabSwitch('scheduled');
+}
 
 // --- INITIALIZATION ---
 function initialize() {
@@ -1881,8 +2640,10 @@ function initialize() {
     themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
     tabImageStudio = document.getElementById('tab-image-studio') as HTMLButtonElement;
+    tabSocialManager = document.getElementById('tab-social-manager') as HTMLButtonElement;
     designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
     imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
+    socialMediaManagerPage = document.getElementById('social-media-manager-page') as HTMLDivElement;
 
     // -- Design Generator --
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
@@ -1913,13 +2674,22 @@ function initialize() {
     resultContainer = document.getElementById('result-container') as HTMLDivElement;
     flyerOutput = document.getElementById('flyer-output') as HTMLImageElement;
     downloadControls = document.querySelector('.download-controls') as HTMLDivElement;
-    downloadBtn = document.getElementById('download-btn') as HTMLAnchorElement;
+    downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
+    shareBtn = document.getElementById('share-btn') as HTMLButtonElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
     cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
+
+    // -- Share Modal --
+    shareModal = document.getElementById('share-modal') as HTMLDivElement;
+    shareImagePreview = document.getElementById('share-image-preview') as HTMLImageElement;
+    shareCaptionInput = document.getElementById('share-caption-input') as HTMLTextAreaElement;
+    generateCaptionBtn = document.getElementById('generate-caption-btn') as HTMLButtonElement;
+    shareNowBtn = document.getElementById('share-now-btn') as HTMLButtonElement;
+    cancelShareBtn = document.getElementById('cancel-share-btn') as HTMLButtonElement;
 
     // -- Image Studio --
     studioTabEdit = document.getElementById('studio-tab-edit') as HTMLButtonElement;
@@ -1972,8 +2742,61 @@ function initialize() {
     redoBtn = document.getElementById('redo-btn') as HTMLButtonElement;
     studioDownloadControls = document.querySelector('.studio-download-controls') as HTMLDivElement;
     studioFormatSelect = document.getElementById('studio-format-select') as HTMLSelectElement;
-    studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLAnchorElement;
+    studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLButtonElement;
+    studioShareBtn = document.getElementById('studio-share-btn') as HTMLButtonElement;
     studioErrorMessage = document.getElementById('studio-error-message') as HTMLDivElement;
+
+    // -- Social Media Manager --
+    businessSelect = document.getElementById('business-select') as HTMLSelectElement;
+    manageBusinessesBtn = document.getElementById('manage-businesses-btn') as HTMLButtonElement;
+    socialTopicInput = document.getElementById('social-topic-input') as HTMLTextAreaElement;
+    brainstormIdeasBtn = document.getElementById('brainstorm-ideas-btn') as HTMLButtonElement;
+    socialToneSelect = document.getElementById('social-tone-select') as HTMLSelectElement;
+    socialPlatformsContainer = document.getElementById('social-platforms-container') as HTMLDivElement;
+    selectAllPlatformsBtn = document.getElementById('select-all-platforms-btn') as HTMLButtonElement;
+    generateSocialBtn = document.getElementById('generate-social-btn') as HTMLButtonElement;
+    generateRepliesBtn = document.getElementById('generate-replies-btn') as HTMLButtonElement;
+    socialTabCreate = document.getElementById('social-tab-create') as HTMLButtonElement;
+    socialTabScheduled = document.getElementById('social-tab-scheduled') as HTMLButtonElement;
+    socialCreatePanel = document.getElementById('social-create-panel') as HTMLDivElement;
+    socialScheduledPanel = document.getElementById('social-scheduled-panel') as HTMLDivElement;
+    socialOutputPlaceholder = document.getElementById('social-output-placeholder') as HTMLDivElement;
+    socialLoader = document.getElementById('social-loader') as HTMLDivElement;
+    socialResultsContainer = document.getElementById('social-results-container') as HTMLDivElement;
+    socialScheduleControls = document.getElementById('social-schedule-controls') as HTMLDivElement;
+    scheduleDateInput = document.getElementById('schedule-date-input') as HTMLInputElement;
+    suggestTimeBtn = document.getElementById('suggest-time-btn') as HTMLButtonElement;
+    schedulePostsBtn = document.getElementById('schedule-posts-btn') as HTMLButtonElement;
+    socialErrorMessage = document.getElementById('social-error-message') as HTMLDivElement;
+    scheduledPostsContainer = document.getElementById('scheduled-posts-container') as HTMLDivElement;
+    businessManagerModal = document.getElementById('business-manager-modal') as HTMLDivElement;
+    businessListContainer = document.getElementById('business-list-container') as HTMLDivElement;
+    businessForm = document.getElementById('business-form') as HTMLFormElement;
+    businessIdInput = document.getElementById('business-id-input') as HTMLInputElement;
+    businessNameInput = document.getElementById('business-name-input') as HTMLInputElement;
+    businessSocialGeneralInput = document.getElementById('business-social-general-input') as HTMLInputElement;
+    businessSocialLinkedinInput = document.getElementById('business-social-linkedin-input') as HTMLInputElement;
+    businessSocialTwitterInput = document.getElementById('business-social-twitter-input') as HTMLInputElement;
+    businessSocialInstagramInput = document.getElementById('business-social-instagram-input') as HTMLInputElement;
+    businessSocialFacebookInput = document.getElementById('business-social-facebook-input') as HTMLInputElement;
+    businessSocialRedditInput = document.getElementById('business-social-reddit-input') as HTMLInputElement;
+    cancelBusinessEditBtn = document.getElementById('cancel-business-edit-btn') as HTMLButtonElement;
+    brainstormModal = document.getElementById('brainstorm-modal') as HTMLDivElement;
+    brainstormResultsContainer = document.getElementById('brainstorm-results-container') as HTMLDivElement;
+    closeBrainstormBtn = document.getElementById('close-brainstorm-btn') as HTMLButtonElement;
+    generateBrainstormIdeasBtn = document.getElementById('generate-brainstorm-ideas-btn') as HTMLButtonElement;
+    replyGeneratorModal = document.getElementById('reply-generator-modal') as HTMLDivElement;
+    replyOriginalText = document.getElementById('reply-original-text') as HTMLTextAreaElement;
+    replyToneSelect = document.getElementById('reply-tone-select') as HTMLSelectElement;
+    replyResultsContainer = document.getElementById('reply-results-container') as HTMLDivElement;
+    closeReplyModalBtn = document.getElementById('close-reply-modal-btn') as HTMLButtonElement;
+    generateReplyBtn = document.getElementById('generate-reply-btn') as HTMLButtonElement;
+    refinePostModal = document.getElementById('refine-post-modal') as HTMLDivElement;
+    refineOriginalText = document.getElementById('refine-original-text') as HTMLParagraphElement;
+    refineActionsContainer = document.getElementById('refine-actions-container') as HTMLDivElement;
+    refineCustomInstruction = document.getElementById('refine-custom-instruction') as HTMLTextAreaElement;
+    cancelRefineBtn = document.getElementById('cancel-refine-btn') as HTMLButtonElement;
+    refineNowBtn = document.getElementById('refine-now-btn') as HTMLButtonElement;
 
 
     // --- Now that we know generateBtn exists, we can safely query its inner elements. ---
@@ -1985,6 +2808,7 @@ function initialize() {
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
+    tabSocialManager.addEventListener('click', () => switchAppTab('social'));
 
     // -- Design Generator --
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
@@ -2020,8 +2844,17 @@ function initialize() {
     contactDetailsInput.addEventListener('input', debouncedSavePrefs);
     generateBtn.addEventListener('click', handleGenerateClick);
     downloadBtn.addEventListener('click', handleDownloadClick);
+    shareBtn.addEventListener('click', () => openShareModal('design'));
     clearPrefsBtn.addEventListener('click', handleClearPrefs);
     
+    // -- Share Modal Listeners --
+    generateCaptionBtn.addEventListener('click', handleGenerateCaptionClick);
+    shareNowBtn.addEventListener('click', handleShareNowClick);
+    cancelShareBtn.addEventListener('click', closeShareModal);
+    shareModal.addEventListener('click', (e) => {
+        if (e.target === shareModal) closeShareModal();
+    });
+
     // -- Image Studio --
     studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
     studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
@@ -2093,6 +2926,94 @@ function initialize() {
     redoBtn.addEventListener('click', handleRedoClick);
 
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
+    studioShareBtn.addEventListener('click', () => openShareModal('studio'));
+
+    // --- Social Media Manager Event Listeners ---
+    manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
+    businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
+    businessForm.addEventListener('submit', handleBusinessFormSubmit);
+    cancelBusinessEditBtn.addEventListener('click', resetBusinessForm);
+    businessListContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const editBtn = target.closest('.edit-btn');
+        const deleteBtn = target.closest('.delete-btn');
+        if (editBtn) {
+            handleEditBusinessClick(parseInt(editBtn.getAttribute('data-id')!));
+        }
+        if (deleteBtn) {
+            handleDeleteBusinessClick(parseInt(deleteBtn.getAttribute('data-id')!));
+        }
+    });
+
+    businessSelect.addEventListener('change', () => {
+        selectedBusinessId = parseInt(businessSelect.value);
+        saveSocialPrefs();
+    });
+
+    brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
+    closeBrainstormBtn.addEventListener('click', closeBrainstormModal);
+    generateBrainstormIdeasBtn.addEventListener('click', handleBrainstormClick);
+    brainstormModal.addEventListener('click', (e) => { if (e.target === brainstormModal) closeBrainstormModal(); });
+
+    generateRepliesBtn.addEventListener('click', openReplyModal);
+    closeReplyModalBtn.addEventListener('click', closeReplyModal);
+    generateReplyBtn.addEventListener('click', handleGenerateReplies);
+    replyGeneratorModal.addEventListener('click', (e) => { if (e.target === replyGeneratorModal) closeReplyModal(); });
+    
+    socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
+    socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
+
+    selectAllPlatformsBtn.addEventListener('click', handleSelectAllPlatforms);
+    generateSocialBtn.addEventListener('click', handleGenerateSocialClick);
+    schedulePostsBtn.addEventListener('click', handleSchedulePostsClick);
+    suggestTimeBtn.addEventListener('click', handleSuggestTimeClick);
+
+
+    scheduledPostsContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const deleteBtn = target.closest('.delete-scheduled-btn');
+        if (deleteBtn) {
+            const id = parseFloat(deleteBtn.getAttribute('data-id')!);
+            scheduledPosts = scheduledPosts.filter(p => p.id !== id);
+            saveSocialPrefs();
+            renderScheduledPosts();
+        }
+    });
+
+    socialResultsContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const refineBtn = target.closest('.refine-post-btn');
+        if (refineBtn) {
+            const platform = refineBtn.getAttribute('data-platform');
+            if (platform) {
+                openRefineModal(platform);
+            }
+        }
+    });
+    
+    // Refine Modal Listeners
+    cancelRefineBtn.addEventListener('click', closeRefineModal);
+    refineNowBtn.addEventListener('click', handleRefinePostClick);
+    refinePostModal.addEventListener('click', (e) => { if (e.target === refinePostModal) closeRefineModal(); });
+    refineActionsContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const chip = target.closest('.style-chip');
+        if (chip) {
+            // Deselect other chips
+            refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
+            // Select the clicked one
+            chip.classList.add('selected');
+            // Clear custom input when a chip is selected
+            refineCustomInstruction.value = '';
+        }
+    });
+    refineCustomInstruction.addEventListener('input', () => {
+        // If user types in custom instruction, deselect chips
+        if(refineCustomInstruction.value.trim()) {
+            refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
+        }
+    });
+
 
     // --- Voice Recognition Setup ---
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -2142,8 +3063,8 @@ function initialize() {
             } else if (event.error === 'no-speech') {
                 userMessage = 'No speech was detected. Please try again.';
             }
-            const isStudio = imageStudioPage.classList.contains('active');
-            showError(userMessage, isStudio);
+            const errorEl = socialMediaManagerPage.classList.contains('active') ? socialErrorMessage : (imageStudioPage.classList.contains('active') ? studioErrorMessage : errorMessage);
+            showError(userMessage, errorEl);
             // Ensure cleanup happens even on error.
             if (isListening) {
                 recognition.stop();
@@ -2183,8 +3104,8 @@ function initialize() {
                         recognition.start();
                     } catch (err) {
                         console.error("Speech recognition error on start:", err);
-                        const isStudio = imageStudioPage.classList.contains('active');
-                        showError("Could not start voice recognition.", isStudio);
+                        const errorEl = socialMediaManagerPage.classList.contains('active') ? socialErrorMessage : (imageStudioPage.classList.contains('active') ? studioErrorMessage : errorMessage);
+                        showError("Could not start voice recognition.", errorEl);
                         activeMic = null; // Clean up on failure.
                     }
                 }
@@ -2207,7 +3128,15 @@ function initialize() {
     loadTheme();
     handleLoadPrefs();
     loadStudioPrefs();
-    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | null;
+    loadSocialPrefs();
+    renderSocialPlatforms();
+    
+    // Set default schedule date
+    const now = new Date();
+    now.setDate(now.getDate() + 1);
+    scheduleDateInput.value = now.toISOString().slice(0, 16);
+
+    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
     if (lastTab) {
         switchAppTab(lastTab);
     }
