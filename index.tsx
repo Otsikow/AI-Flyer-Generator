@@ -21,6 +21,35 @@ let tabSocialManager: HTMLButtonElement;
 let designGeneratorPage: HTMLDivElement;
 let imageStudioPage: HTMLDivElement;
 let socialMediaManagerPage: HTMLDivElement;
+// -- Auth Elements --
+let authControls: HTMLDivElement;
+let loginBtn: HTMLButtonElement;
+let userDisplay: HTMLDivElement;
+let userNameSpan: HTMLSpanElement;
+let userVerificationNotice: HTMLSpanElement;
+let manageUsersBtn: HTMLButtonElement;
+let logoutBtn: HTMLButtonElement;
+let loginModal: HTMLDivElement;
+let loginTabBtn: HTMLButtonElement;
+let signupTabBtn: HTMLButtonElement;
+let loginTabContent: HTMLDivElement;
+let signupTabContent: HTMLDivElement;
+let loginForm: HTMLFormElement;
+let signupForm: HTMLFormElement;
+let loginEmailInput: HTMLInputElement;
+let loginPasswordInput: HTMLInputElement;
+let loginErrorMessage: HTMLDivElement;
+let signupNameInput: HTMLInputElement;
+let signupEmailInput: HTMLInputElement;
+let signupPasswordInput: HTMLInputElement;
+let signupErrorMessage: HTMLDivElement;
+let forgotPasswordLink: HTMLButtonElement;
+let googleLoginBtn: HTMLButtonElement;
+let googleSignupBtn: HTMLButtonElement;
+let userManagementModal: HTMLDivElement;
+let userManagementList: HTMLDivElement;
+let closeUserManagementBtn: HTMLButtonElement;
+
 
 // -- Design Generator --
 let descriptionHeader: HTMLHeadingElement;
@@ -44,7 +73,7 @@ let fontOptions: NodeListOf<HTMLDivElement>;
 let sizeOptions: NodeListOf<HTMLDivElement>;
 let textEffectOptions: NodeListOf<HTMLDivElement>;
 let generateBtn: HTMLButtonElement;
-let generateBtnSpan: HTMLSpanElement;
+let generateBtnSpan: HTMLSpanElement | null;
 let clearPrefsBtn: HTMLButtonElement;
 let outputPlaceholder: HTMLDivElement;
 let loader: HTMLDivElement;
@@ -260,6 +289,17 @@ let isGeneratingReplies = false;
 let isRefiningPost = false;
 let postToRefine: { platform: string; text: string; } | null = null;
 
+// Auth State
+type User = {
+    email: string;
+    passwordHash: string;
+    role: 'user' | 'admin';
+    name?: string;
+    isVerified: boolean;
+};
+let allUsers: User[] = [];
+let currentUser: User | null = null;
+
 
 // Shared State
 const PREFERENCES_KEY = 'flyerGeneratorPrefs';
@@ -267,6 +307,8 @@ const STUDIO_PREFERENCES_KEY = 'imageStudioPrefs';
 const SOCIAL_PREFERENCES_KEY = 'socialManagerPrefs';
 const THEME_KEY = 'flyergen-theme';
 const LAST_TAB_KEY = 'flyergen-last-tab';
+const USERS_KEY = 'flyergen-users';
+const CURRENT_USER_KEY = 'flyergen-currentUser';
 
 
 // --- GEMINI SETUP ---
@@ -2632,11 +2674,282 @@ function handleSchedulePostsClick() {
     handleSocialTabSwitch('scheduled');
 }
 
+// --- AUTHENTICATION FUNCTIONS ---
+
+// A simple (and insecure) hash function for demonstration purposes.
+// In a real app, use a proper library like bcrypt.
+async function hashPassword(password: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function saveUsers() {
+    localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
+}
+
+function loadUsers() {
+    const usersString = localStorage.getItem(USERS_KEY);
+    if (usersString) {
+        allUsers = JSON.parse(usersString);
+    }
+    // Create a default admin user if none exist
+    if (allUsers.length === 0) {
+        hashPassword('adminpass').then(passwordHash => {
+            allUsers.push({ email: 'admin@example.com', passwordHash, role: 'admin', name: 'Admin', isVerified: true });
+            saveUsers();
+        });
+    }
+}
+
+function updateAuthUI() {
+    if (currentUser) {
+        loginBtn.classList.add('hidden');
+        userDisplay.classList.remove('hidden');
+        userNameSpan.textContent = currentUser.name || currentUser.email;
+        manageUsersBtn.classList.toggle('hidden', currentUser.role !== 'admin');
+        
+        if (!currentUser.isVerified) {
+            userVerificationNotice.classList.remove('hidden');
+            userVerificationNotice.innerHTML = `(unverified) <button class="link-btn" id="resend-verification-link">Resend</button>`;
+            document.getElementById('resend-verification-link')?.addEventListener('click', () => {
+                alert("Email verification requires a backend service to send emails. This feature is not implemented in this client-side demo.");
+            });
+        } else {
+            userVerificationNotice.classList.add('hidden');
+        }
+
+    } else {
+        loginBtn.classList.remove('hidden');
+        userDisplay.classList.add('hidden');
+    }
+}
+
+function openLoginModal() {
+    loginModal.classList.remove('hidden');
+    // Reset forms and errors
+    loginForm.reset();
+    signupForm.reset();
+    loginErrorMessage.classList.add('hidden');
+    signupErrorMessage.classList.add('hidden');
+    // Default to login tab
+    switchAuthTab('login');
+}
+
+function closeLoginModal() {
+    loginModal.classList.add('hidden');
+}
+
+function switchAuthTab(tab: 'login' | 'signup') {
+    if (tab === 'login') {
+        loginTabBtn.classList.add('active');
+        signupTabBtn.classList.remove('active');
+        loginTabContent.classList.remove('hidden');
+        signupTabContent.classList.add('hidden');
+    } else {
+        loginTabBtn.classList.remove('active');
+        signupTabBtn.classList.add('active');
+        loginTabContent.classList.add('hidden');
+        signupTabContent.classList.remove('hidden');
+    }
+}
+
+async function handleSignup(event: Event) {
+    event.preventDefault();
+    const email = signupEmailInput.value;
+    const password = signupPasswordInput.value;
+    const name = signupNameInput.value;
+    signupErrorMessage.classList.add('hidden');
+
+    if (!name.trim()) {
+        signupErrorMessage.textContent = 'Please enter your full name.';
+        signupErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    if (allUsers.find(u => u.email === email)) {
+        signupErrorMessage.textContent = 'An account with this email already exists.';
+        signupErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    const passwordHash = await hashPassword(password);
+    const newUser: User = { email, passwordHash, role: 'user', name, isVerified: false };
+    allUsers.push(newUser);
+    saveUsers();
+
+    currentUser = newUser;
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+    updateAuthUI();
+    closeLoginModal();
+}
+
+async function handleLogin(event: Event) {
+    event.preventDefault();
+    const email = loginEmailInput.value;
+    const password = loginPasswordInput.value;
+    loginErrorMessage.classList.add('hidden');
+    
+    const user = allUsers.find(u => u.email === email);
+    if (!user) {
+        loginErrorMessage.textContent = 'Invalid email or password.';
+        loginErrorMessage.classList.remove('hidden');
+        return;
+    }
+    
+    const passwordHash = await hashPassword(password);
+    if (user.passwordHash !== passwordHash) {
+        loginErrorMessage.textContent = 'Invalid email or password.';
+        loginErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    currentUser = user;
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+    updateAuthUI();
+    closeLoginModal();
+}
+
+function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem(CURRENT_USER_KEY);
+    updateAuthUI();
+}
+
+function openUserManagementModal() {
+    renderUserManagementList();
+    userManagementModal.classList.remove('hidden');
+}
+
+function closeUserManagementModal() {
+    userManagementModal.classList.add('hidden');
+}
+
+function renderUserManagementList() {
+    userManagementList.innerHTML = '';
+    allUsers.forEach(user => {
+        const item = document.createElement('div');
+        item.className = 'user-management-item';
+        
+        const isSelf = currentUser && currentUser.email === user.email;
+        
+        item.innerHTML = `
+            <span class="user-management-item-email">${user.email} ${isSelf ? '(You)' : ''}</span>
+            <div class="user-management-item-actions">
+                <select class="format-select user-role-select" data-email="${user.email}" ${isSelf ? 'disabled' : ''}>
+                    <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
+                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                </select>
+                <button class="btn delete-user-btn" data-email="${user.email}" ${isSelf ? 'disabled' : ''}>Delete</button>
+            </div>
+        `;
+        userManagementList.appendChild(item);
+    });
+
+    userManagementList.querySelectorAll('.user-role-select').forEach(select => {
+        select.addEventListener('change', (e) => {
+            const target = e.target as HTMLSelectElement;
+            const email = target.dataset.email!;
+            const newRole = target.value as 'user' | 'admin';
+            const userToUpdate = allUsers.find(u => u.email === email);
+            if (userToUpdate) {
+                userToUpdate.role = newRole;
+                saveUsers();
+            }
+        });
+    });
+
+    userManagementList.querySelectorAll('.delete-user-btn').forEach(button => {
+        button.addEventListener('click', (e) => {
+            if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+
+            const target = e.currentTarget as HTMLButtonElement;
+            const email = target.dataset.email!;
+            allUsers = allUsers.filter(u => u.email !== email);
+            saveUsers();
+            renderUserManagementList();
+        });
+    });
+}
+
+// --- MICROPHONE / SPEECH RECOGNITION ---
+function initializeSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        console.warn("Speech Recognition not supported in this browser.");
+        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => btn.style.display = 'none');
+        return;
+    }
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (event: any) => {
+        if (activeMic) {
+            const transcript = event.results[0][0].transcript;
+            activeMic.input.value += transcript;
+            activeMic.input.dispatchEvent(new Event('input')); 
+        }
+    };
+
+    recognition.onspeechend = () => {
+        stopListening();
+    };
+
+    recognition.onerror = (event: any) => {
+        console.error("Speech recognition error", event.error);
+        stopListening();
+    };
+
+    recognition.onend = () => {
+        if (isListening) {
+             stopListening();
+        }
+    };
+}
+
+function startListening(inputElement: HTMLTextAreaElement, buttonElement: HTMLButtonElement) {
+    if (!recognition || isListening) return;
+    
+    if (activeMic) {
+        stopListening(); 
+    }
+    
+    isListening = true;
+    activeMic = { input: inputElement, button: buttonElement };
+    buttonElement.classList.add('listening');
+    buttonElement.ariaLabel = 'Stop Listening';
+    recognition.start();
+}
+
+function stopListening() {
+    if (!recognition || !isListening) return;
+
+    recognition.stop();
+    if (activeMic) {
+        activeMic.button.classList.remove('listening');
+        activeMic.button.ariaLabel = 'Use Voice to Describe';
+    }
+    isListening = false;
+    activeMic = null;
+}
+
+function toggleListening(inputElement: HTMLTextAreaElement, buttonElement: HTMLButtonElement) {
+    if (isListening) {
+        stopListening();
+    } else {
+        startListening(inputElement, buttonElement);
+    }
+}
+
+
 // --- INITIALIZATION ---
 function initialize() {
-    // --- Assign all DOM elements ---
-
-    // -- App Shell --
+    // --- Query DOM elements ---
     themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
     tabImageStudio = document.getElementById('tab-image-studio') as HTMLButtonElement;
@@ -2644,8 +2957,35 @@ function initialize() {
     designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
     imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
     socialMediaManagerPage = document.getElementById('social-media-manager-page') as HTMLDivElement;
+    
+    authControls = document.getElementById('auth-controls') as HTMLDivElement;
+    loginBtn = document.getElementById('login-btn') as HTMLButtonElement;
+    userDisplay = document.getElementById('user-display') as HTMLDivElement;
+    userNameSpan = document.getElementById('user-name') as HTMLSpanElement;
+    userVerificationNotice = document.getElementById('user-verification-notice') as HTMLSpanElement;
+    manageUsersBtn = document.getElementById('manage-users-btn') as HTMLButtonElement;
+    logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
+    loginModal = document.getElementById('login-modal') as HTMLDivElement;
+    loginTabBtn = document.getElementById('login-tab-btn') as HTMLButtonElement;
+    signupTabBtn = document.getElementById('signup-tab-btn') as HTMLButtonElement;
+    loginTabContent = document.getElementById('login-tab-content') as HTMLDivElement;
+    signupTabContent = document.getElementById('signup-tab-content') as HTMLDivElement;
+    loginForm = document.getElementById('login-form') as HTMLFormElement;
+    signupForm = document.getElementById('signup-form') as HTMLFormElement;
+    loginEmailInput = document.getElementById('login-email') as HTMLInputElement;
+    loginPasswordInput = document.getElementById('login-password') as HTMLInputElement;
+    loginErrorMessage = document.getElementById('login-error-message') as HTMLDivElement;
+    signupNameInput = document.getElementById('signup-name') as HTMLInputElement;
+    signupEmailInput = document.getElementById('signup-email') as HTMLInputElement;
+    signupPasswordInput = document.getElementById('signup-password') as HTMLInputElement;
+    signupErrorMessage = document.getElementById('signup-error-message') as HTMLDivElement;
+    forgotPasswordLink = document.getElementById('forgot-password-link') as HTMLButtonElement;
+    googleLoginBtn = document.getElementById('google-login-btn') as HTMLButtonElement;
+    googleSignupBtn = document.getElementById('google-signup-btn') as HTMLButtonElement;
+    userManagementModal = document.getElementById('user-management-modal') as HTMLDivElement;
+    userManagementList = document.getElementById('user-management-list') as HTMLDivElement;
+    closeUserManagementBtn = document.getElementById('close-user-management-btn') as HTMLButtonElement;
 
-    // -- Design Generator --
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
     micDesignBtn = document.getElementById('mic-design-btn') as HTMLButtonElement;
@@ -2667,23 +3007,24 @@ function initialize() {
     sizeOptions = document.querySelectorAll('.size-option');
     textEffectOptions = document.querySelectorAll('.text-effect-option');
     generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
+    generateBtnSpan = generateBtn?.querySelector('span');
     clearPrefsBtn = document.getElementById('clear-prefs-btn') as HTMLButtonElement;
     outputPlaceholder = document.getElementById('output-placeholder') as HTMLDivElement;
     loader = document.getElementById('loader') as HTMLDivElement;
     loaderText = document.getElementById('loader-text') as HTMLParagraphElement;
     resultContainer = document.getElementById('result-container') as HTMLDivElement;
     flyerOutput = document.getElementById('flyer-output') as HTMLImageElement;
-    downloadControls = document.querySelector('.download-controls') as HTMLDivElement;
+    downloadControls = document.getElementById('download-controls') as HTMLDivElement;
     downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
     shareBtn = document.getElementById('share-btn') as HTMLButtonElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
+
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
     cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
 
-    // -- Share Modal --
     shareModal = document.getElementById('share-modal') as HTMLDivElement;
     shareImagePreview = document.getElementById('share-image-preview') as HTMLImageElement;
     shareCaptionInput = document.getElementById('share-caption-input') as HTMLTextAreaElement;
@@ -2691,7 +3032,6 @@ function initialize() {
     shareNowBtn = document.getElementById('share-now-btn') as HTMLButtonElement;
     cancelShareBtn = document.getElementById('cancel-share-btn') as HTMLButtonElement;
 
-    // -- Image Studio --
     studioTabEdit = document.getElementById('studio-tab-edit') as HTMLButtonElement;
     studioTabGenerate = document.getElementById('studio-tab-generate') as HTMLButtonElement;
     studioEditPanel = document.getElementById('studio-edit-panel') as HTMLDivElement;
@@ -2725,8 +3065,8 @@ function initialize() {
     imagePromptInput = document.getElementById('image-prompt-input') as HTMLTextAreaElement;
     micGenerateImageBtn = document.getElementById('mic-generate-image-btn') as HTMLButtonElement;
     enhanceImagePromptBtn = document.getElementById('enhance-image-prompt-btn') as HTMLButtonElement;
-    styleChips = document.querySelectorAll('.style-chip');
-    sizePresetChips = document.querySelectorAll('.size-preset-chip');
+    styleChips = document.querySelectorAll('#studio-generate-panel .style-chip');
+    sizePresetChips = document.querySelectorAll('#size-preset-chips .size-preset-chip');
     customWidthInput = document.getElementById('custom-width-input') as HTMLInputElement;
     customHeightInput = document.getElementById('custom-height-input') as HTMLInputElement;
     aspectRatioLockToggle = document.getElementById('aspect-ratio-lock-toggle') as HTMLInputElement;
@@ -2746,7 +3086,6 @@ function initialize() {
     studioShareBtn = document.getElementById('studio-share-btn') as HTMLButtonElement;
     studioErrorMessage = document.getElementById('studio-error-message') as HTMLDivElement;
 
-    // -- Social Media Manager --
     businessSelect = document.getElementById('business-select') as HTMLSelectElement;
     manageBusinessesBtn = document.getElementById('manage-businesses-btn') as HTMLButtonElement;
     socialTopicInput = document.getElementById('social-topic-input') as HTMLTextAreaElement;
@@ -2798,36 +3137,45 @@ function initialize() {
     cancelRefineBtn = document.getElementById('cancel-refine-btn') as HTMLButtonElement;
     refineNowBtn = document.getElementById('refine-now-btn') as HTMLButtonElement;
 
-
-    // --- Now that we know generateBtn exists, we can safely query its inner elements. ---
-    generateBtnSpan = generateBtn.querySelector('span') as HTMLSpanElement;
-
-    // --- Attach all event listeners ---
-    
-    // -- App Shell --
+    // --- Add Event Listeners ---
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
 
-    // -- Design Generator --
+    loginBtn.addEventListener('click', openLoginModal);
+    logoutBtn.addEventListener('click', handleLogout);
+    manageUsersBtn.addEventListener('click', openUserManagementModal);
+    closeUserManagementBtn.addEventListener('click', closeUserManagementModal);
+    
+    loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
+    loginTabBtn.addEventListener('click', () => switchAuthTab('login'));
+    signupTabBtn.addEventListener('click', () => switchAuthTab('signup'));
+    loginForm.addEventListener('submit', handleLogin);
+    signupForm.addEventListener('submit', handleSignup);
+    forgotPasswordLink.addEventListener('click', () => alert("Password recovery requires a backend service to send emails. This feature is not implemented in this client-side demo."));
+    googleLoginBtn.addEventListener('click', () => alert("Google Sign-In requires backend setup and OAuth configuration. This feature is not implemented in this client-side demo."));
+    googleSignupBtn.addEventListener('click', () => alert("Google Sign-Up requires backend setup and OAuth configuration. This feature is not implemented in this client-side demo."));
+
+    const designInputs = [promptInput, companyNameInput, contactDetailsInput];
+    designInputs.forEach(input => input.addEventListener('input', debouncedSavePrefs));
+    promptInput.addEventListener('input', () => { enhancePromptBtn.disabled = !promptInput.value.trim(); });
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
-    imageUploadArea.addEventListener('click', (e) => {
-        if (e.target !== removeLogoBtn) {
-            logoUpload.click();
-        }
-    });
-    logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
-    removeLogoBtn.addEventListener('click', handleRemoveLogo);
+    micDesignBtn.addEventListener('click', () => toggleListening(promptInput, micDesignBtn));
+    
+    imageUploadArea.addEventListener('click', () => logoUpload.click());
     imageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); imageUploadArea.classList.add('drag-over'); });
     imageUploadArea.addEventListener('dragleave', () => imageUploadArea.classList.remove('drag-over'));
     imageUploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
         imageUploadArea.classList.remove('drag-over');
-        handleLogoSelection(e.dataTransfer?.files ?? null);
+        handleLogoSelection(e.dataTransfer?.files || null);
     });
+    logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
+    removeLogoBtn.addEventListener('click', handleRemoveLogo);
     applyCropBtn.addEventListener('click', handleApplyCrop);
     cancelCropBtn.addEventListener('click', handleCancelCrop);
+    
     logoSizeOptions.forEach(option => option.addEventListener('click', handleLogoSizeSelection));
     logoPositionOptions.forEach(option => option.addEventListener('click', handleLogoPositionSelection));
     paletteOptions.forEach(option => option.addEventListener('click', handlePaletteSelection));
@@ -2836,313 +3184,151 @@ function initialize() {
     fontOptions.forEach(option => option.addEventListener('click', handleFontSelection));
     sizeOptions.forEach(option => option.addEventListener('click', handleSizeSelection));
     textEffectOptions.forEach(option => option.addEventListener('click', handleTextEffectSelection));
-    promptInput.addEventListener('input', () => {
-        enhancePromptBtn.disabled = !promptInput.value.trim();
-        debouncedSavePrefs();
-    });
-    companyNameInput.addEventListener('input', debouncedSavePrefs);
-    contactDetailsInput.addEventListener('input', debouncedSavePrefs);
+    
     generateBtn.addEventListener('click', handleGenerateClick);
+    clearPrefsBtn.addEventListener('click', handleClearPrefs);
     downloadBtn.addEventListener('click', handleDownloadClick);
     shareBtn.addEventListener('click', () => openShareModal('design'));
-    clearPrefsBtn.addEventListener('click', handleClearPrefs);
-    
-    // -- Share Modal Listeners --
+
+    shareModal.addEventListener('click', e => { if (e.target === shareModal) closeShareModal(); });
+    cancelShareBtn.addEventListener('click', closeShareModal);
     generateCaptionBtn.addEventListener('click', handleGenerateCaptionClick);
     shareNowBtn.addEventListener('click', handleShareNowClick);
-    cancelShareBtn.addEventListener('click', closeShareModal);
-    shareModal.addEventListener('click', (e) => {
-        if (e.target === shareModal) closeShareModal();
-    });
-
-    // -- Image Studio --
+    
     studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
     studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
+    
     studioImageUploadArea.addEventListener('click', () => studioLogoUpload.click());
     studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
-    studioImageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); studioImageUploadArea.classList.add('drag-over'); });
-    studioImageUploadArea.addEventListener('dragleave', () => studioImageUploadArea.classList.remove('drag-over'));
-    studioImageUploadArea.addEventListener('drop', (e) => {
-        e.preventDefault();
-        studioImageUploadArea.classList.remove('drag-over');
-        handleStudioImageUpload(e.dataTransfer?.files ?? null);
-    });
-    brightnessSlider.addEventListener('input', () => { studioImageFilters.brightness = parseInt(brightnessSlider.value); applyStudioImageFilters(); });
-    contrastSlider.addEventListener('input', () => { studioImageFilters.contrast = parseInt(contrastSlider.value); applyStudioImageFilters(); });
-    saturateSlider.addEventListener('input', () => { studioImageFilters.saturate = parseInt(saturateSlider.value); applyStudioImageFilters(); });
-    blurSlider.addEventListener('input', () => { studioImageFilters.blur = parseFloat(blurSlider.value); applyStudioImageFilters(); });
-    
-    // AI Edit Listeners
-    aiEditPromptInput.addEventListener('input', () => {
-        enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim();
-    });
-    enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
-    applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
     mergeImagesBtn.addEventListener('click', handleMergeImagesClick);
 
-    // Text Overlay Listeners
-    textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
-    fontFamilySelect.addEventListener('input', handleTextStyleUpdate);
-    fontSizeSlider.addEventListener('input', handleTextStyleUpdate);
-    fontColorPicker.addEventListener('input', handleTextStyleUpdate);
-    fontBoldBtn.addEventListener('click', () => {
-        const isPressed = fontBoldBtn.getAttribute('aria-pressed') === 'true';
-        fontBoldBtn.setAttribute('aria-pressed', String(!isPressed));
-        handleTextStyleUpdate();
-    });
-    fontItalicBtn.addEventListener('click', () => {
-        const isPressed = fontItalicBtn.getAttribute('aria-pressed') === 'true';
-        fontItalicBtn.setAttribute('aria-pressed', String(!isPressed));
-        handleTextStyleUpdate();
-    });
-    textPositionGrid.forEach(option => option.addEventListener('click', handleTextPositionUpdate));
-    
-    imagePromptInput.addEventListener('input', () => {
-        enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
-    });
-    enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
-    styleChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-            const style = chip.dataset.style;
-            if (!style) return;
-            chip.classList.toggle('selected');
-            const isSelected = chip.classList.contains('selected');
-            chip.setAttribute('aria-checked', String(isSelected));
-            if (isSelected) {
-                selectedImageStyles.add(style);
-            } else {
-                selectedImageStyles.delete(style);
-            }
+    aiEditPromptInput.addEventListener('input', () => { enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim(); });
+    micAiEditBtn.addEventListener('click', () => toggleListening(aiEditPromptInput, micAiEditBtn));
+    enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
+    applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
+
+    [brightnessSlider, contrastSlider, saturateSlider, blurSlider].forEach(slider => {
+        slider.addEventListener('input', (e) => {
+            const target = e.target as HTMLInputElement;
+            studioImageFilters[target.id.split('-')[0] as keyof typeof studioImageFilters] = Number(target.value);
+            applyStudioImageFilters();
         });
     });
+    textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
+    [fontFamilySelect, fontSizeSlider, fontColorPicker].forEach(el => el.addEventListener('input', handleTextStyleUpdate));
+    [fontBoldBtn, fontItalicBtn].forEach(btn => btn.addEventListener('click', () => {
+        const isPressed = btn.getAttribute('aria-pressed') === 'true';
+        btn.setAttribute('aria-pressed', String(!isPressed));
+        handleTextStyleUpdate();
+    }));
+    textPositionGrid.forEach(pos => pos.addEventListener('click', handleTextPositionUpdate));
+    
+    undoBtn.addEventListener('click', handleUndoClick);
+    redoBtn.addEventListener('click', handleRedoClick);
+
+    imagePromptInput.addEventListener('input', () => { enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim(); });
+    micGenerateImageBtn.addEventListener('click', () => toggleListening(imagePromptInput, micGenerateImageBtn));
+    enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
+    styleChips.forEach(chip => chip.addEventListener('click', () => {
+        const style = chip.dataset.style;
+        if (!style) return;
+        chip.classList.toggle('selected');
+        const isSelected = chip.classList.contains('selected');
+        chip.setAttribute('aria-checked', String(isSelected));
+        if (isSelected) selectedImageStyles.add(style);
+        else selectedImageStyles.delete(style);
+    }));
     sizePresetChips.forEach(chip => chip.addEventListener('click', handleSizePresetClick));
     customWidthInput.addEventListener('input', handleCustomDimensionInput);
     customHeightInput.addEventListener('input', handleCustomDimensionInput);
     aspectRatioLockToggle.addEventListener('change', handleAspectRatioLockToggle);
     generateImageBtn.addEventListener('click', handleGenerateImageClick);
-    
-    // History Listeners
-    undoBtn.addEventListener('click', handleUndoClick);
-    redoBtn.addEventListener('click', handleRedoClick);
 
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
     studioShareBtn.addEventListener('click', () => openShareModal('studio'));
-
-    // --- Social Media Manager Event Listeners ---
+    
     manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
-    businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
-    businessForm.addEventListener('submit', handleBusinessFormSubmit);
+    businessManagerModal.addEventListener('click', e => { if(e.target === businessManagerModal) closeBusinessManagerModal(); });
     cancelBusinessEditBtn.addEventListener('click', resetBusinessForm);
-    businessListContainer.addEventListener('click', (e) => {
+    businessForm.addEventListener('submit', handleBusinessFormSubmit);
+    businessListContainer.addEventListener('click', e => {
         const target = e.target as HTMLElement;
-        const editBtn = target.closest('.edit-btn');
-        const deleteBtn = target.closest('.delete-btn');
-        if (editBtn) {
-            handleEditBusinessClick(parseInt(editBtn.getAttribute('data-id')!));
-        }
-        if (deleteBtn) {
-            handleDeleteBusinessClick(parseInt(deleteBtn.getAttribute('data-id')!));
-        }
+        const editBtn = target.closest('.edit-btn') as HTMLButtonElement;
+        const deleteBtn = target.closest('.delete-btn') as HTMLButtonElement;
+        if (editBtn) handleEditBusinessClick(parseInt(editBtn.dataset.id!));
+        if (deleteBtn) handleDeleteBusinessClick(parseInt(deleteBtn.dataset.id!));
     });
-
     businessSelect.addEventListener('change', () => {
         selectedBusinessId = parseInt(businessSelect.value);
         saveSocialPrefs();
     });
-
+    
     brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
     closeBrainstormBtn.addEventListener('click', closeBrainstormModal);
     generateBrainstormIdeasBtn.addEventListener('click', handleBrainstormClick);
-    brainstormModal.addEventListener('click', (e) => { if (e.target === brainstormModal) closeBrainstormModal(); });
-
+    
     generateRepliesBtn.addEventListener('click', openReplyModal);
     closeReplyModalBtn.addEventListener('click', closeReplyModal);
     generateReplyBtn.addEventListener('click', handleGenerateReplies);
-    replyGeneratorModal.addEventListener('click', (e) => { if (e.target === replyGeneratorModal) closeReplyModal(); });
     
     socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
     socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
-
     selectAllPlatformsBtn.addEventListener('click', handleSelectAllPlatforms);
     generateSocialBtn.addEventListener('click', handleGenerateSocialClick);
-    schedulePostsBtn.addEventListener('click', handleSchedulePostsClick);
+    
     suggestTimeBtn.addEventListener('click', handleSuggestTimeClick);
-
-
-    scheduledPostsContainer.addEventListener('click', (e) => {
+    schedulePostsBtn.addEventListener('click', handleSchedulePostsClick);
+    scheduledPostsContainer.addEventListener('click', e => {
         const target = e.target as HTMLElement;
-        const deleteBtn = target.closest('.delete-scheduled-btn');
+        const deleteBtn = target.closest('.delete-scheduled-btn') as HTMLButtonElement;
         if (deleteBtn) {
-            const id = parseFloat(deleteBtn.getAttribute('data-id')!);
+            const id = parseFloat(deleteBtn.dataset.id!);
             scheduledPosts = scheduledPosts.filter(p => p.id !== id);
             saveSocialPrefs();
             renderScheduledPosts();
         }
     });
 
-    socialResultsContainer.addEventListener('click', (e) => {
+    socialResultsContainer.addEventListener('click', e => {
         const target = e.target as HTMLElement;
-        const refineBtn = target.closest('.refine-post-btn');
+        const refineBtn = target.closest('.refine-post-btn') as HTMLButtonElement;
         if (refineBtn) {
-            const platform = refineBtn.getAttribute('data-platform');
-            if (platform) {
-                openRefineModal(platform);
-            }
+            openRefineModal(refineBtn.dataset.platform!);
         }
     });
-    
-    // Refine Modal Listeners
-    cancelRefineBtn.addEventListener('click', closeRefineModal);
-    refineNowBtn.addEventListener('click', handleRefinePostClick);
-    refinePostModal.addEventListener('click', (e) => { if (e.target === refinePostModal) closeRefineModal(); });
-    refineActionsContainer.addEventListener('click', (e) => {
+    refineActionsContainer.addEventListener('click', e => {
         const target = e.target as HTMLElement;
         const chip = target.closest('.style-chip');
         if (chip) {
-            // Deselect other chips
             refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
-            // Select the clicked one
             chip.classList.add('selected');
-            // Clear custom input when a chip is selected
-            refineCustomInstruction.value = '';
         }
     });
-    refineCustomInstruction.addEventListener('input', () => {
-        // If user types in custom instruction, deselect chips
-        if(refineCustomInstruction.value.trim()) {
-            refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
-        }
-    });
-
-
-    // --- Voice Recognition Setup ---
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.continuous = true; // Keep listening until explicitly stopped.
-        recognition.lang = 'en-US';
-        recognition.interimResults = true; // Show results as they are being spoken.
-
-        let initialText = ''; // To store text that was in the input before starting.
-
-        recognition.onstart = () => {
-            isListening = true;
-            if (activeMic) {
-                initialText = activeMic.input.value; // Save current text.
-                activeMic.button.classList.add('listening');
-                activeMic.button.title = 'Stop Listening';
-                // Disable other mic buttons to prevent conflicting states.
-                [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
-                    if (btn && btn !== activeMic?.button) {
-                        btn.disabled = true;
-                    }
-                });
-            }
-        };
-
-        recognition.onend = () => {
-            isListening = false;
-            if (activeMic) {
-                activeMic.button.classList.remove('listening');
-                activeMic.button.title = 'Use Voice';
-                // Manually trigger input event for features like auto-save.
-                activeMic.input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-             // Re-enable all mic buttons.
-            [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
-                if (btn) btn.disabled = false;
-            });
-            activeMic = null;
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error('Speech recognition error:', event.error);
-            let userMessage = 'An error occurred during voice recognition.';
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                userMessage = 'Microphone access was denied. Please allow it in your browser settings.';
-            } else if (event.error === 'no-speech') {
-                userMessage = 'No speech was detected. Please try again.';
-            }
-            const errorEl = socialMediaManagerPage.classList.contains('active') ? socialErrorMessage : (imageStudioPage.classList.contains('active') ? studioErrorMessage : errorMessage);
-            showError(userMessage, errorEl);
-            // Ensure cleanup happens even on error.
-            if (isListening) {
-                recognition.stop();
-            }
-        };
-
-        recognition.onresult = (event: any) => {
-            if (!activeMic) return;
-
-            let interim_transcript = '';
-            let final_transcript = '';
-
-            // Iterate through all results received in this session.
-            for (let i = 0; i < event.results.length; ++i) {
-                const transcript_part = event.results[i][0].transcript;
-                if (event.results[i].isFinal) {
-                    final_transcript += transcript_part;
-                } else {
-                    interim_transcript += transcript_part;
-                }
-            }
-            
-            // Combine initial text with the full transcript so far.
-            const separator = initialText.trim().length > 0 && (final_transcript.length > 0 || interim_transcript.length > 0) ? ' ' : '';
-            activeMic.input.value = initialText + separator + final_transcript + interim_transcript;
-        };
-        
-        const setupMicListener = (button: HTMLButtonElement, input: HTMLTextAreaElement) => {
-            if (!button) return;
-            button.addEventListener('click', () => {
-                // Toggle listening state.
-                if (isListening) {
-                    recognition.stop();
-                } else {
-                    activeMic = { input, button };
-                    try {
-                        recognition.start();
-                    } catch (err) {
-                        console.error("Speech recognition error on start:", err);
-                        const errorEl = socialMediaManagerPage.classList.contains('active') ? socialErrorMessage : (imageStudioPage.classList.contains('active') ? studioErrorMessage : errorMessage);
-                        showError("Could not start voice recognition.", errorEl);
-                        activeMic = null; // Clean up on failure.
-                    }
-                }
-            });
-        };
-
-        setupMicListener(micDesignBtn, promptInput);
-        setupMicListener(micAiEditBtn, aiEditPromptInput);
-        setupMicListener(micGenerateImageBtn, imagePromptInput);
-
-    } else {
-        console.warn('Speech Recognition not supported in this browser.');
-        // Hide all microphone buttons if the API is not available.
-        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
-            if(btn) btn.style.display = 'none';
-        });
-    }
-
-    // --- Final Setup ---
+    refineNowBtn.addEventListener('click', handleRefinePostClick);
+    cancelRefineBtn.addEventListener('click', closeRefineModal);
+    
+    // --- Load initial state ---
     loadTheme();
+    loadUsers();
+    
+    const savedUserString = localStorage.getItem(CURRENT_USER_KEY);
+    if (savedUserString) {
+        currentUser = JSON.parse(savedUserString);
+    }
+    updateAuthUI();
+    
     handleLoadPrefs();
     loadStudioPrefs();
     loadSocialPrefs();
+    
+    initializeSpeechRecognition();
     renderSocialPlatforms();
     
-    // Set default schedule date
-    const now = new Date();
-    now.setDate(now.getDate() + 1);
-    scheduleDateInput.value = now.toISOString().slice(0, 16);
-
-    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
-    if (lastTab) {
-        switchAppTab(lastTab);
+    const lastTab = localStorage.getItem(LAST_TAB_KEY);
+    if (lastTab === 'studio' || lastTab === 'social' || lastTab === 'design') {
+        switchAppTab(lastTab as 'design' | 'studio' | 'social');
     }
 }
 
-// Run initialization
-initialize();
-
-export {};
+// --- Start the app ---
+document.addEventListener('DOMContentLoaded', initialize);
