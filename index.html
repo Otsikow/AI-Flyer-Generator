@@ -57,6 +57,7 @@
                     <section class="input-panel">
                         <div class="preferences-bar">
                             <h3>Preferences</h3>
+                            <div id="design-save-indicator" class="auto-save-indicator"></div>
                             <div class="pref-buttons">
                                 <button id="clear-prefs-btn" class="btn btn-secondary">Clear</button>
                             </div>
@@ -284,9 +285,12 @@
             <div id="image-studio-page" class="tab-content hidden">
                 <div class="generator-container">
                     <section class="input-panel">
-                        <div class="studio-tabs">
-                            <button id="studio-tab-edit" class="studio-tab-btn active" role="tab" aria-selected="true">Edit</button>
-                            <button id="studio-tab-generate" class="studio-tab-btn" role="tab" aria-selected="false">Generate</button>
+                        <div class="studio-tabs-container">
+                             <div class="studio-tabs">
+                                <button id="studio-tab-edit" class="studio-tab-btn active" role="tab" aria-selected="true">Edit</button>
+                                <button id="studio-tab-generate" class="studio-tab-btn" role="tab" aria-selected="false">Generate</button>
+                            </div>
+                            <div id="studio-save-indicator" class="auto-save-indicator"></div>
                         </div>
             
                         <div id="studio-edit-panel" class="studio-panel active">
@@ -493,7 +497,10 @@
             <div id="social-media-manager-page" class="tab-content hidden">
                 <div class="generator-container">
                     <section class="input-panel">
-                        <h2>1. Business & Topic</h2>
+                        <div class="panel-header">
+                            <h2>1. Business & Topic</h2>
+                            <div id="social-save-indicator" class="auto-save-indicator"></div>
+                        </div>
                         <div class="social-business-selector">
                             <select id="business-select" class="format-select"></select>
                             <button id="manage-businesses-btn" class="btn btn-secondary">Manage</button>
@@ -626,23 +633,37 @@
                 <!-- Business list rendered here -->
             </div>
             <form id="business-form">
-                <h3>Add/Edit Business</h3>
+                <h3 class="form-grid-span-2">Add/Edit Business</h3>
                 <input type="hidden" id="business-id-input">
-                <label for="business-name-input">Business Name</label>
-                <input type="text" id="business-name-input" required>
-                <label for="business-social-general-input">General Website</label>
-                <input type="url" id="business-social-general-input" placeholder="https://example.com">
-                <label for="business-social-linkedin-input">LinkedIn URL</label>
-                <input type="url" id="business-social-linkedin-input" placeholder="https://linkedin.com/company/example">
-                 <label for="business-social-twitter-input">X / Twitter URL</label>
-                <input type="url" id="business-social-twitter-input" placeholder="https://x.com/example">
-                <label for="business-social-instagram-input">Instagram URL</label>
-                <input type="url" id="business-social-instagram-input" placeholder="https://instagram.com/example">
-                <label for="business-social-facebook-input">Facebook URL</label>
-                <input type="url" id="business-social-facebook-input" placeholder="https://facebook.com/example">
-                <label for="business-social-reddit-input">Reddit Community URL</label>
-                <input type="url" id="business-social-reddit-input" placeholder="https://reddit.com/r/example">
-                <div class="modal-actions">
+                <div class="form-grid-span-2">
+                    <label for="business-name-input">Business Name</label>
+                    <input type="text" id="business-name-input" required>
+                </div>
+                <div>
+                    <label for="business-social-general-input">General Website</label>
+                    <input type="url" id="business-social-general-input" placeholder="https://example.com">
+                </div>
+                <div>
+                    <label for="business-social-linkedin-input">LinkedIn URL</label>
+                    <input type="url" id="business-social-linkedin-input" placeholder="https://linkedin.com/company/example">
+                </div>
+                <div>
+                    <label for="business-social-twitter-input">X / Twitter URL</label>
+                    <input type="url" id="business-social-twitter-input" placeholder="https://x.com/example">
+                </div>
+                <div>
+                    <label for="business-social-instagram-input">Instagram URL</label>
+                    <input type="url" id="business-social-instagram-input" placeholder="https://instagram.com/example">
+                </div>
+                <div>
+                    <label for="business-social-facebook-input">Facebook URL</label>
+                    <input type="url" id="business-social-facebook-input" placeholder="https://facebook.com/example">
+                </div>
+                <div>
+                    <label for="business-social-reddit-input">Reddit Community URL</label>
+                    <input type="url" id="business-social-reddit-input" placeholder="https://reddit.com/r/example">
+                </div>
+                <div class="modal-actions form-grid-span-2">
                     <button type="button" id="cancel-business-edit-btn" class="btn btn-secondary">Cancel</button>
                     <button type="submit" class="btn">Save Business</button>
                 </div>
