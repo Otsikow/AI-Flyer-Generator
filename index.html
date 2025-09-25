@@ -26,7 +26,7 @@
             </svg>
             <div class="header-content">
                 <h1>3G Design Generator</h1>
-                <p>Generate stunning flyers, logos, and banners with AI.</p>
+                <p>Generate and edit photos, create designs, and manage social media content with AI.</p>
             </div>
             <div class="header-actions">
                 <div id="auth-controls">
@@ -46,18 +46,18 @@
         </header>
 
         <nav class="app-tabs">
-            <button id="tab-design-generator" class="tab-btn active" role="tab" aria-selected="true">Design Generator</button>
-            <button id="tab-image-studio" class="tab-btn" role="tab" aria-selected="false">Image Studio</button>
-            <button id="tab-social-manager" class="tab-btn" role="tab" aria-selected="false">Social Media Manager</button>
+            <button id="tab-design-generator" class="tab-btn active" role="tab" aria-selected="true" aria-controls="design-generator-page">Design Generator</button>
+            <button id="tab-image-studio" class="tab-btn" role="tab" aria-selected="false" aria-controls="image-studio-page">Image Studio</button>
+            <button id="tab-social-manager" class="tab-btn" role="tab" aria-selected="false" aria-controls="social-media-manager-page">Social Media Manager</button>
         </nav>
 
         <main>
-            <div id="design-generator-page" class="tab-content active">
+            <div id="design-generator-page" class="tab-content active" role="tabpanel" aria-labelledby="tab-design-generator">
                 <div class="generator-container">
                     <section class="input-panel">
                         <div class="preferences-bar">
                             <h3>Preferences</h3>
-                            <div id="design-save-indicator" class="auto-save-indicator"></div>
+                            <div id="design-save-indicator" class="auto-save-indicator" aria-live="polite"></div>
                             <div class="pref-buttons">
                                 <button id="clear-prefs-btn" class="btn btn-secondary">Clear</button>
                             </div>
@@ -86,7 +86,7 @@
                         <div id="image-upload-area" role="button" aria-label="Upload your logo" tabindex="0">
                             <button id="remove-logo-btn" class="hidden" aria-label="Remove logo">&times;</button>
                             <input type="file" id="logo-upload" accept="image/*" class="hidden">
-                            <img id="logo-preview" class="hidden" alt="Uploaded logo preview">
+                            <img id="logo-preview" class="hidden" alt="Uploaded logo preview" loading="lazy" decoding="async">
                             <div id="upload-placeholder">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                                 <p>Click to upload or drag & drop</p>
@@ -266,7 +266,7 @@
                         </div>
 
                         <div id="result-container" class="hidden">
-                            <img id="flyer-output" alt="Generated design">
+                            <img id="flyer-output" alt="Generated design" loading="lazy" decoding="async">
                             <div class="download-controls hidden">
                                  <select id="format-select" class="format-select">
                                     <option value="png">PNG</option>
@@ -277,23 +277,23 @@
                             </div>
                         </div>
                         
-                        <div id="error-message" class="hidden"></div>
+                        <div id="error-message" class="error-message hidden" aria-live="polite"></div>
                     </section>
                 </div>
             </div>
             
-            <div id="image-studio-page" class="tab-content hidden">
+            <div id="image-studio-page" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-image-studio">
                 <div class="generator-container">
                     <section class="input-panel">
                         <div class="studio-tabs-container">
                              <div class="studio-tabs">
-                                <button id="studio-tab-edit" class="studio-tab-btn" role="tab" aria-selected="false">Edit</button>
-                                <button id="studio-tab-generate" class="studio-tab-btn active" role="tab" aria-selected="true">Generate</button>
+                                <button id="studio-tab-edit" class="studio-tab-btn" role="tab" aria-selected="false" aria-controls="studio-edit-panel">Edit</button>
+                                <button id="studio-tab-generate" class="studio-tab-btn active" role="tab" aria-selected="true" aria-controls="studio-generate-panel">Generate</button>
                             </div>
-                            <div id="studio-save-indicator" class="auto-save-indicator"></div>
+                            <div id="studio-save-indicator" class="auto-save-indicator" aria-live="polite"></div>
                         </div>
             
-                        <div id="studio-edit-panel" class="studio-panel">
+                        <div id="studio-edit-panel" class="studio-panel" role="tabpanel" aria-labelledby="studio-tab-edit">
                             <h2>Upload & Adjust</h2>
                             <div id="studio-image-upload-area" role="button" aria-label="Upload your image(s)" tabindex="0">
                                 <input type="file" id="studio-logo-upload" accept="image/*" class="hidden" multiple>
@@ -403,7 +403,7 @@
                             </div>
                         </div>
             
-                        <div id="studio-generate-panel" class="studio-panel active">
+                        <div id="studio-generate-panel" class="studio-panel active" role="tabpanel" aria-labelledby="studio-tab-generate">
                             <h2>Generate Image</h2>
                             <div class="input-container">
                                 <textarea id="image-prompt-input" rows="4" placeholder="e.g., A majestic lion with a glowing mane in a futuristic city..."></textarea>
@@ -479,7 +479,7 @@
                         
                          <div id="studio-result-container" class="hidden">
                             <div class="canvas-container">
-                                <img id="studio-image-output" alt="Studio image output">
+                                <img id="studio-image-output" alt="Studio image output" loading="lazy" decoding="async">
                                 <canvas id="studio-text-canvas"></canvas>
                             </div>
                              <div class="studio-download-controls hidden">
@@ -492,17 +492,17 @@
                             </div>
                         </div>
 
-                        <div id="studio-error-message" class="hidden"></div>
+                        <div id="studio-error-message" class="error-message hidden" aria-live="polite"></div>
                     </section>
                 </div>
             </div>
 
-            <div id="social-media-manager-page" class="tab-content hidden">
+            <div id="social-media-manager-page" class="tab-content hidden" role="tabpanel" aria-labelledby="tab-social-manager">
                 <div class="generator-container">
                     <section class="input-panel">
                         <div class="panel-header">
                             <h2>1. Business & Topic</h2>
-                            <div id="social-save-indicator" class="auto-save-indicator"></div>
+                            <div id="social-save-indicator" class="auto-save-indicator" aria-live="polite"></div>
                         </div>
                         <div class="social-business-selector">
                             <select id="business-select" class="format-select"></select>
@@ -547,11 +547,11 @@
             
                     <section class="output-panel">
                         <div class="studio-tabs">
-                            <button id="social-tab-create" class="studio-tab-btn active" role="tab">Create</button>
-                            <button id="social-tab-scheduled" class="studio-tab-btn" role="tab">Scheduled</button>
+                            <button id="social-tab-create" class="studio-tab-btn active" role="tab" aria-controls="social-create-panel">Create</button>
+                            <button id="social-tab-scheduled" class="studio-tab-btn" role="tab" aria-controls="social-scheduled-panel">Scheduled</button>
                         </div>
             
-                        <div id="social-create-panel" class="studio-panel active">
+                        <div id="social-create-panel" class="studio-panel active" role="tabpanel" aria-labelledby="social-tab-create">
                             <div id="social-output-placeholder">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
                                 <h3>Generated posts will appear here</h3>
@@ -574,10 +574,10 @@
                                 </div>
                                 <button id="schedule-posts-btn" class="btn">Schedule Posts</button>
                             </div>
-                             <div id="social-error-message" class="hidden"></div>
+                             <div id="social-error-message" class="error-message hidden" aria-live="polite"></div>
                         </div>
             
-                        <div id="social-scheduled-panel" class="studio-panel">
+                        <div id="social-scheduled-panel" class="studio-panel" role="tabpanel" aria-labelledby="social-tab-scheduled">
                             <div class="scheduled-header">
                                 <h2>Scheduled Posts</h2>
                                 <!-- View toggles can go here if needed -->
@@ -612,7 +612,7 @@
         <div class="modal-content">
             <h2>Share Design</h2>
             <div class="share-content">
-                <img id="share-image-preview" alt="Design preview for sharing">
+                <img id="share-image-preview" alt="Design preview for sharing" loading="lazy" decoding="async">
                 <div class="share-form">
                     <textarea id="share-caption-input" rows="6" placeholder="Write a caption..."></textarea>
                     <button id="generate-caption-btn" class="btn btn-secondary">
@@ -754,7 +754,7 @@
             <div id="login-tab-content">
                 <form id="login-form">
                     <h2>Login to Your Account</h2>
-                    <div id="login-error-message" class="error-message hidden"></div>
+                    <div id="login-error-message" class="error-message hidden" aria-live="polite"></div>
                     <div class="form-group">
                         <label for="login-email">Email</label>
                         <input type="email" id="login-email" required>
@@ -777,7 +777,7 @@
             <div id="signup-tab-content" class="hidden">
                 <form id="signup-form">
                     <h2>Create an Account</h2>
-                     <div id="signup-error-message" class="error-message hidden"></div>
+                     <div id="signup-error-message" class="error-message hidden" aria-live="polite"></div>
                     <div class="form-group">
                         <label for="signup-name">Full Name</label>
                         <input type="text" id="signup-name" required>
