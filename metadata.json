@@ -1,6 +1,6 @@
 {
-  "name": "3G Flyer Generator",
-  "description": "Flyer Generator",
+  "name": "3G Media Generator",
+  "description": "Media Generator and Social Media Manager",
   "requestFramePermissions": [
     "microphone"
   ],

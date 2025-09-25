@@ -1,5 +1,4 @@
-
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 // Since cropperjs is loaded from a CDN, we declare its type here to satisfy TypeScript
 declare var Cropper: any;
@@ -119,6 +118,7 @@ let mergeControls: HTMLDivElement;
 let mergePromptInput: HTMLTextAreaElement;
 let mergeImagesBtn: HTMLButtonElement;
 let adjustmentControls: HTMLDivElement;
+let resetFiltersBtn: HTMLButtonElement;
 // -- AI Edit elements --
 let aiEditSection: HTMLDivElement;
 let aiEditPromptInput: HTMLTextAreaElement;
@@ -296,6 +296,7 @@ let isBrainstorming = false;
 let isGeneratingReplies = false;
 let isRefiningPost = false;
 let postToRefine: { platform: string; text: string; } | null = null;
+let isSuggestingTime = false;
 
 // Auth State
 type User = {
@@ -327,11 +328,11 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // --- CONSTANTS ---
 const platforms = [
-    { name: 'LinkedIn', key: 'linkedin', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>` },
-    { name: 'X / Twitter', key: 'twitter', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>` },
-    { name: 'Instagram', key: 'instagram', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>` },
-    { name: 'Facebook', key: 'facebook', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>` },
-    { name: 'Reddit', key: 'reddit', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm2-8.8H9c0-1.1.9-2 2-2s2 .9 2 2z"/><path d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm2-8.8H9c0-1.1.9-2 2-2s2 .9 2 2zM16 12c0 .8-.4 1.5-.9 1.9.1.5.1 1.1 0 1.6-.2.6-.5 1.2-1 1.7-.5.5-1.1.8-1.7 1-.6.2-1.2.2-1.8.1-.5 0-1-.1-1.5-.3-.5-.2-1-.4-1.4-.8-.4-.4-.8-.8-1.1-1.3s-.5-1-.6-1.5c-.1-.5-.1-1.1 0-1.6.5-.4.9-1.1.9-1.9 0-1.1-.9-2-2-2H8v-2h2c1.1 0 2-.9 2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2h-1c-.6 0-1 .4-1 1s.4 1 1 1h2c1.1 0 2 .9 2 2z"/></svg>` },
+    { name: 'LinkedIn', key: 'linkedin', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/><rect width="4" height="12" x="2" y="9"/><circle cx="4" cy="4" r="2"/></svg>` },
+    { name: 'X / Twitter', key: 'twitter', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>` },
+    { name: 'Instagram', key: 'instagram', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>` },
+    { name: 'Facebook', key: 'facebook', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>` },
+    { name: 'Reddit', key: 'reddit', icon: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm2-8.8H9c0-1.1.9-2 2-2s2 .9 2 2z"/><path d="M12 2c5.52 0 10 4.48 10 10s-4.48 10-10 10S2 17.52 2 12 6.48 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4.8c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm2-8.8H9c0-1.1.9-2 2-2s2 .9 2 2zM16 12c0 .8-.4 1.5-.9 1.9.1.5.1 1.1 0 1.6-.2.6-.5 1.2-1 1.7-.5.5-1.1.8-1.7 1-.6.2-1.2.2-1.8.1-.5 0-1-.1-1.5-.3-.5-.2-1-.4-1.4-.8-.4-.4-.8-.8-1.1-1.3s-.5-1-.6-1.5c-.1-.5-.1-1.1 0-1.6.5-.4.9-1.1.9-1.9 0-1.1-.9-2-2-2H8v-2h2c1.1 0 2-.9 2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2h-1c-.6 0-1 .4-1 1s.4 1 1 1h2c1.1 0 2 .9 2 2z"/></svg>` },
 ];
 
 
@@ -756,8 +757,7 @@ function handleLoadPrefs() {
 
 function handleClearPrefs() {
     // Cancel any pending auto-save before clearing
-    const debouncedSaver = debounce(savePrefs, 1);
-    debouncedSaver.cancel();
+    (debouncedSavePrefs as any).cancel();
     localStorage.removeItem(PREFERENCES_KEY);
     
     // --- Reset all state variables to default ---
@@ -1474,6 +1474,23 @@ function updateUndoRedoButtons() {
     redoBtn.disabled = studioHistoryIndex >= studioImageHistory.length - 1;
 }
 
+/**
+ * Resets all manual filter adjustments to their default state.
+ */
+function resetAllImageFilters() {
+    // Reset state object
+    studioImageFilters = { brightness: 100, contrast: 100, saturate: 100, blur: 0 };
+    
+    // Reset slider UI
+    brightnessSlider.value = '100';
+    contrastSlider.value = '100';
+    saturateSlider.value = '100';
+    blurSlider.value = '0';
+
+    // Apply the reset filters to the image
+    applyStudioImageFilters();
+}
+
 function renderCurrentImageFromHistory() {
     if (studioHistoryIndex < 0 || studioHistoryIndex >= studioImageHistory.length) {
         return;
@@ -1492,12 +1509,7 @@ function renderCurrentImageFromHistory() {
     }
     
     // Reset manual adjustments when history changes
-    brightnessSlider.value = '100';
-    contrastSlider.value = '100';
-    saturateSlider.value = '100';
-    blurSlider.value = '0';
-    studioImageFilters = { brightness: 100, contrast: 100, saturate: 100, blur: 0 };
-    applyStudioImageFilters();
+    resetAllImageFilters();
     
     // Wait for the new image to load to set canvas size
     studioImageOutput.onload = () => {
@@ -2255,6 +2267,20 @@ function loadSocialPrefs() {
     renderSocialPlatforms();
 }
 
+function handleSocialTabSwitch(targetTab: 'create' | 'scheduled') {
+    if (targetTab === 'create') {
+        socialTabCreate.classList.add('active');
+        socialTabScheduled.classList.remove('active');
+        socialCreatePanel.classList.add('active');
+        socialScheduledPanel.classList.remove('active');
+    } else { // scheduled
+        socialTabScheduled.classList.add('active');
+        socialTabCreate.classList.remove('active');
+        socialScheduledPanel.classList.add('active');
+        socialCreatePanel.classList.remove('active');
+    }
+}
+
 function renderScheduledPosts() {
     if (!scheduledPostsContainer) return;
     scheduledPostsContainer.innerHTML = '';
@@ -2629,16 +2655,199 @@ async function handleRefineNowClick() {
     }
 }
 
+async function handleSuggestTimeClick() {
+    if (isSuggestingTime) return;
 
-// --- MICROPHONE / SPEECH RECOGNITION ---
-function initializeSpeechRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        console.warn("Speech Recognition API is not supported in this browser.");
-        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => btn.style.display = 'none');
+    if (selectedPlatforms.size === 0) {
+        showError("Please select at least one platform to get a time suggestion.", socialErrorMessage);
+        return;
+    }
+
+    isSuggestingTime = true;
+    suggestTimeBtn.disabled = true;
+    const originalIcon = suggestTimeBtn.innerHTML;
+    suggestTimeBtn.innerHTML = `<div class="loading-spinner" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
+    socialErrorMessage.classList.add('hidden');
+
+    try {
+        const topic = socialTopicInput.value.trim();
+        const platformsText = Array.from(selectedPlatforms).join(', ');
+        const prompt = `Based on general user engagement patterns, what is the optimal date and time to post about "${topic}" on these platforms: ${platformsText}? Provide the single best time considering all platforms. Respond with only a JSON object following this schema. The current date is ${new Date().toISOString()}.`;
+
+        const responseSchema = {
+            type: Type.OBJECT,
+            properties: {
+                optimalTime: {
+                    type: Type.STRING,
+                    description: "The suggested optimal posting time in 'YYYY-MM-DDTHH:mm' format."
+                }
+            }
+        };
+
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema,
+            },
+        });
+        
+        const jsonStr = response.text.trim();
+        const suggested = JSON.parse(jsonStr);
+
+        if (suggested.optimalTime) {
+            // Basic validation
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(suggested.optimalTime)) {
+                scheduleDateInput.value = suggested.optimalTime;
+                debouncedSaveSocialPrefs();
+            } else {
+                 showError("AI returned an invalid time format. Please try again.", socialErrorMessage);
+            }
+        } else {
+            showError("The AI couldn't suggest a time. Please try again.", socialErrorMessage);
+        }
+
+    } catch (error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isSuggestingTime = false;
+        suggestTimeBtn.disabled = false;
+        suggestTimeBtn.innerHTML = originalIcon;
+    }
+}
+
+async function handleGenerateSocialClick() {
+    if (isGeneratingSocial) return;
+
+    const topic = socialTopicInput.value.trim();
+    if (!topic) {
+        showError("Please enter a topic for your social media posts.", socialErrorMessage);
+        return;
+    }
+    if (selectedPlatforms.size === 0) {
+        showError("Please select at least one social media platform.", socialErrorMessage);
         return;
     }
     
+    isGeneratingSocial = true;
+    generateSocialBtn.disabled = true;
+    generateSocialBtn.classList.add('loading');
+    socialOutputPlaceholder.classList.add('hidden');
+    socialResultsContainer.innerHTML = '';
+    socialLoader.classList.remove('hidden');
+    socialErrorMessage.classList.add('hidden');
+
+    try {
+        const business = businesses.find(b => b.id === selectedBusinessId);
+        const tone = socialToneSelect.value;
+        const platformsText = Array.from(selectedPlatforms).join(', ');
+
+        let businessContext = `for a business named "${business?.name || 'our company'}"`;
+        if (business?.socials.general) {
+            businessContext += ` with the website ${business.socials.general}`;
+        }
+
+        const prompt = `
+        Generate one social media post for each of the following platforms: ${platformsText}.
+        The posts should be about: "${topic}".
+        Adopt a "${tone}" tone of voice.
+        The posts should be tailored ${businessContext}.
+        
+        Return a JSON array where each object represents a post and has "platform" and "text" keys. For example: [{"platform": "linkedin", "text": "Post content..."}]
+        `;
+
+        const responseSchema = {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    platform: { type: Type.STRING, description: "The key of the platform (e.g., 'linkedin')." },
+                    text: { type: Type.STRING, description: "The generated post content." }
+                },
+                required: ["platform", "text"]
+            }
+        };
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema
+            }
+        });
+        
+        const jsonStr = response.text.trim();
+        const posts = JSON.parse(jsonStr);
+
+        if (Array.isArray(posts) && posts.length > 0) {
+            generatedSocialContent = posts;
+            renderGeneratedSocialPosts();
+        } else {
+             showError("The AI couldn't generate posts. Please try refining your topic.", socialErrorMessage);
+             socialOutputPlaceholder.classList.remove('hidden');
+        }
+
+    } catch (error) {
+        parseAndShowError(error, socialErrorMessage);
+        socialOutputPlaceholder.classList.remove('hidden');
+    } finally {
+        isGeneratingSocial = false;
+        generateSocialBtn.disabled = false;
+        generateSocialBtn.classList.remove('loading');
+        socialLoader.classList.add('hidden');
+    }
+}
+
+function handleSchedulePostsClick() {
+    if (generatedSocialContent.length === 0 || !scheduleDateInput.value) {
+        showError("Please generate posts and select a date/time before scheduling.", socialErrorMessage);
+        return;
+    }
+
+    const scheduleTime = new Date(scheduleDateInput.value);
+    
+    if (isNaN(scheduleTime.getTime())) {
+        showError("Please enter a valid date and time.", socialErrorMessage);
+        return;
+    }
+
+    const confirmation = confirm(
+        `You are about to schedule ${generatedSocialContent.length} posts for ${scheduleTime.toLocaleString()}.\n\nAre you sure you want to proceed?`
+    );
+    
+    if (confirmation) {
+        const newScheduledPosts = generatedSocialContent.map(post => ({
+            ...post,
+            scheduleTime: scheduleTime,
+            businessId: selectedBusinessId
+        }));
+        
+        scheduledPosts.push(...newScheduledPosts);
+        
+        generatedSocialContent = [];
+        renderGeneratedSocialPosts();
+        socialScheduleControls.classList.add('hidden');
+        
+        debouncedSaveSocialPrefs();
+        renderScheduledPosts();
+        
+        handleSocialTabSwitch('scheduled');
+    }
+}
+
+
+// --- SPEECH RECOGNITION ---
+function initializeSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+        [micDesignBtn, micGenerateImageBtn, micAiEditBtn].forEach(btn => {
+            if (btn) btn.style.display = 'none';
+        });
+        console.warn("Speech Recognition API not supported in this browser.");
+        return;
+    }
     recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.lang = 'en-US';
@@ -2646,57 +2855,240 @@ function initializeSpeechRecognition() {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event: any) => {
-        const speechResult = event.results[0][0].transcript;
-        if (activeMic) {
-            activeMic.input.value = speechResult;
-            activeMic.input.dispatchEvent(new Event('input', { bubbles: true }));
+        const transcript = event.results[0][0].transcript;
+        if (activeMic && activeMic.input) {
+            activeMic.input.value += (activeMic.input.value ? ' ' : '') + transcript;
+            const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+            activeMic.input.dispatchEvent(inputEvent);
         }
     };
 
     recognition.onerror = (event: any) => {
         console.error("Speech recognition error:", event.error);
-        if (event.error === 'not-allowed') {
-            alert("Microphone access was denied. Please allow microphone access in your browser settings.");
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            alert("Microphone access was denied. Please allow microphone access in your browser settings to use this feature.");
         }
-        toggleListening(false);
     };
     
     recognition.onend = () => {
-        if (isListening) {
-            toggleListening(false);
-        }
+        toggleListening(false);
     };
 }
 
-function toggleListening(start: boolean) {
-    if (!recognition || !activeMic) return;
-    
-    if (start) {
-        isListening = true;
-        recognition.start();
-        activeMic.button.classList.add('listening');
-        activeMic.button.title = "Stop Listening";
-    } else {
-        isListening = false;
-        recognition.stop();
-        activeMic.button.classList.remove('listening');
-        activeMic.button.title = "Use Voice";
-        activeMic = null;
-    }
-}
-
 function handleMicClick(input: HTMLTextAreaElement, button: HTMLButtonElement) {
+    if (!recognition) {
+        alert("Speech recognition is not supported by your browser.");
+        return;
+    }
+    
     if (isListening) {
-        toggleListening(false);
+        recognition.stop();
     } else {
         activeMic = { input, button };
+        recognition.start();
         toggleListening(true);
     }
 }
 
+function toggleListening(isNowListening: boolean) {
+    isListening = isNowListening;
+    if (activeMic) {
+        activeMic.button.classList.toggle('listening', isNowListening);
+    }
+    if (!isNowListening) {
+        [micDesignBtn, micGenerateImageBtn, micAiEditBtn].forEach(btn => btn?.classList.remove('listening'));
+        activeMic = null;
+    }
+}
 
+// --- AUTHENTICATION FUNCTIONS ---
+async function hashPassword(password: string): Promise<string> {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+    const passwordHash = await hashPassword(password);
+    return passwordHash === hash;
+}
+
+function saveUsers() {
+    localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
+}
+
+function loadUsers() {
+    const usersString = localStorage.getItem(USERS_KEY);
+    if (usersString) {
+        allUsers = JSON.parse(usersString);
+    } else {
+        // Create a default admin user if none exist
+        hashPassword('admin123').then(hash => {
+            allUsers = [{ email: 'admin@example.com', passwordHash: hash, role: 'admin', isVerified: true }];
+            saveUsers();
+        });
+    }
+}
+
+function loadCurrentUser() {
+    const userString = localStorage.getItem(CURRENT_USER_KEY);
+    if (userString) {
+        currentUser = JSON.parse(userString);
+    }
+}
+
+function updateAuthUI() {
+    if (currentUser) {
+        authControls.classList.add('logged-in');
+        loginBtn.classList.add('hidden');
+        userDisplay.classList.remove('hidden');
+        userNameSpan.textContent = currentUser.name || currentUser.email.split('@')[0];
+        
+        if (!currentUser.isVerified) {
+            userVerificationNotice.classList.remove('hidden');
+            userVerificationNotice.innerHTML = `(Unverified) <button class="link-btn resend-verification-btn">Resend</button>`;
+            userVerificationNotice.querySelector('.resend-verification-btn')?.addEventListener('click', () => {
+                alert("Verification email resent (simulated).");
+            });
+        } else {
+            userVerificationNotice.classList.add('hidden');
+        }
+
+        manageUsersBtn.classList.toggle('hidden', currentUser.role !== 'admin');
+    } else {
+        authControls.classList.remove('logged-in');
+        loginBtn.classList.remove('hidden');
+        userDisplay.classList.add('hidden');
+    }
+}
+
+function openLoginModal() {
+    loginModal.classList.remove('hidden');
+    showLoginTab(); // Default to login tab
+}
+
+function closeLoginModal() {
+    loginModal.classList.add('hidden');
+}
+
+function showLoginTab() {
+    loginTabBtn.classList.add('active');
+    signupTabBtn.classList.remove('active');
+    loginTabContent.classList.remove('hidden');
+    signupTabContent.classList.add('hidden');
+}
+
+function showSignupTab() {
+    loginTabBtn.classList.remove('active');
+    signupTabBtn.classList.add('active');
+    loginTabContent.classList.add('hidden');
+    signupTabContent.classList.remove('hidden');
+}
+
+async function handleLogin(event: Event) {
+    event.preventDefault();
+    loginErrorMessage.classList.add('hidden');
+    const email = loginEmailInput.value;
+    const password = loginPasswordInput.value;
+
+    const user = allUsers.find(u => u.email === email);
+    if (user && await verifyPassword(password, user.passwordHash)) {
+        currentUser = user;
+        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+        updateAuthUI();
+        closeLoginModal();
+    } else {
+        loginErrorMessage.textContent = "Invalid email or password.";
+        loginErrorMessage.classList.remove('hidden');
+    }
+}
+
+async function handleSignup(event: Event) {
+    event.preventDefault();
+    signupErrorMessage.classList.add('hidden');
+    const name = signupNameInput.value;
+    const email = signupEmailInput.value;
+    const password = signupPasswordInput.value;
+
+    if (allUsers.some(u => u.email === email)) {
+        signupErrorMessage.textContent = "An account with this email already exists.";
+        signupErrorMessage.classList.remove('hidden');
+        return;
+    }
+
+    const passwordHash = await hashPassword(password);
+    const newUser: User = { name, email, passwordHash, role: 'user', isVerified: false };
+    allUsers.push(newUser);
+    saveUsers();
+
+    currentUser = newUser;
+    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
+    updateAuthUI();
+    closeLoginModal();
+    alert("Signup successful! A verification email has been sent (simulated).");
+}
+
+function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem(CURRENT_USER_KEY);
+    updateAuthUI();
+}
+
+function openUserManagementModal() {
+    renderUserManagementList();
+    userManagementModal.classList.remove('hidden');
+}
+
+function renderUserManagementList() {
+    userManagementList.innerHTML = '';
+    allUsers.forEach(user => {
+        const item = document.createElement('div');
+        item.className = 'user-management-item';
+        item.innerHTML = `
+            <span class="user-management-item-email">${user.email}</span>
+            <div class="user-management-item-actions">
+                <select class="format-select role-select" data-email="${user.email}">
+                    <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
+                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                </select>
+                <button class="btn btn-secondary delete-user-btn" data-email="${user.email}">Delete</button>
+            </div>
+        `;
+        userManagementList.appendChild(item);
+    });
+}
+
+function handleUserRoleChange(event: Event) {
+    const target = event.target as HTMLSelectElement;
+    const email = target.dataset.email;
+    const newRole = target.value as 'user' | 'admin';
+    const user = allUsers.find(u => u.email === email);
+    if (user) {
+        user.role = newRole;
+        saveUsers();
+    }
+}
+
+function handleDeleteUser(event: Event) {
+    const target = event.target as HTMLButtonElement;
+    const email = target.dataset.email;
+    if (email === currentUser?.email) {
+        alert("You cannot delete your own account.");
+        return;
+    }
+    if (confirm(`Are you sure you want to delete the user: ${email}?`)) {
+        allUsers = allUsers.filter(u => u.email !== email);
+        saveUsers();
+        renderUserManagementList();
+    }
+}
+
+// --- INITIALIZATION ---
 function initialize() {
-    // App Shell
+    // Query selectors
+    // -- App Shell --
     themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
     tabImageStudio = document.getElementById('tab-image-studio') as HTMLButtonElement;
@@ -2704,8 +3096,7 @@ function initialize() {
     designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
     imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
     socialMediaManagerPage = document.getElementById('social-media-manager-page') as HTMLDivElement;
-    
-    // Auth
+    // -- Auth --
     authControls = document.getElementById('auth-controls') as HTMLDivElement;
     loginBtn = document.getElementById('login-btn') as HTMLButtonElement;
     userDisplay = document.getElementById('user-display') as HTMLDivElement;
@@ -2733,13 +3124,11 @@ function initialize() {
     userManagementModal = document.getElementById('user-management-modal') as HTMLDivElement;
     userManagementList = document.getElementById('user-management-list') as HTMLDivElement;
     closeUserManagementBtn = document.getElementById('close-user-management-btn') as HTMLButtonElement;
-
-    // Auto-Save Indicators
+    // -- Auto-Save --
     designSaveIndicator = document.getElementById('design-save-indicator') as HTMLDivElement;
     studioSaveIndicator = document.getElementById('studio-save-indicator') as HTMLDivElement;
     socialSaveIndicator = document.getElementById('social-save-indicator') as HTMLDivElement;
-    
-    // Design Generator
+    // -- Design Generator --
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
     micDesignBtn = document.getElementById('mic-design-btn') as HTMLButtonElement;
@@ -2773,22 +3162,19 @@ function initialize() {
     shareBtn = document.getElementById('share-btn') as HTMLButtonElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
-    
-    // Crop Modal
+    // -- Crop Modal --
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
     cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
-
-    // Share Modal
+    // -- Share Modal --
     shareModal = document.getElementById('share-modal') as HTMLDivElement;
     shareImagePreview = document.getElementById('share-image-preview') as HTMLImageElement;
     shareCaptionInput = document.getElementById('share-caption-input') as HTMLTextAreaElement;
     generateCaptionBtn = document.getElementById('generate-caption-btn') as HTMLButtonElement;
     shareNowBtn = document.getElementById('share-now-btn') as HTMLButtonElement;
     cancelShareBtn = document.getElementById('cancel-share-btn') as HTMLButtonElement;
-    
-    // Image Studio
+    // -- Image Studio --
     studioTabEdit = document.getElementById('studio-tab-edit') as HTMLButtonElement;
     studioTabGenerate = document.getElementById('studio-tab-generate') as HTMLButtonElement;
     studioEditPanel = document.getElementById('studio-edit-panel') as HTMLDivElement;
@@ -2802,6 +3188,7 @@ function initialize() {
     mergePromptInput = document.getElementById('merge-prompt-input') as HTMLTextAreaElement;
     mergeImagesBtn = document.getElementById('merge-images-btn') as HTMLButtonElement;
     adjustmentControls = document.querySelector('.adjustment-controls') as HTMLDivElement;
+    resetFiltersBtn = document.getElementById('reset-filters-btn') as HTMLButtonElement;
     aiEditSection = document.getElementById('ai-edit-section') as HTMLDivElement;
     aiEditPromptInput = document.getElementById('ai-edit-prompt-input') as HTMLTextAreaElement;
     micAiEditBtn = document.getElementById('mic-ai-edit-btn') as HTMLButtonElement;
@@ -2842,8 +3229,7 @@ function initialize() {
     studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLButtonElement;
     studioShareBtn = document.getElementById('studio-share-btn') as HTMLButtonElement;
     studioErrorMessage = document.getElementById('studio-error-message') as HTMLDivElement;
-
-    // Social Media Manager
+    // -- Social Media Manager --
     businessSelect = document.getElementById('business-select') as HTMLSelectElement;
     manageBusinessesBtn = document.getElementById('manage-businesses-btn') as HTMLButtonElement;
     socialTopicInput = document.getElementById('social-topic-input') as HTMLTextAreaElement;
@@ -2895,28 +3281,50 @@ function initialize() {
     cancelRefineBtn = document.getElementById('cancel-refine-btn') as HTMLButtonElement;
     refineNowBtn = document.getElementById('refine-now-btn') as HTMLButtonElement;
 
-    // --- EVENT LISTENERS ---
+    // Initialize debounced savers
+    debouncedSavePrefs = createDebouncedSaver(savePrefs);
+    debouncedSaveStudioPrefs = createDebouncedSaver(saveStudioPrefs);
+    debouncedSaveSocialPrefs = createDebouncedSaver(saveSocialPrefs);
 
-    // App Shell
+    // Event listeners
+    // -- App Shell --
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
     
-    // Design Generator
+    // -- Auth --
+    loginBtn.addEventListener('click', openLoginModal);
+    logoutBtn.addEventListener('click', handleLogout);
+    loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
+    loginTabBtn.addEventListener('click', showLoginTab);
+    signupTabBtn.addEventListener('click', showSignupTab);
+    loginForm.addEventListener('submit', handleLogin);
+    signupForm.addEventListener('submit', handleSignup);
+    manageUsersBtn.addEventListener('click', openUserManagementModal);
+    closeUserManagementBtn.addEventListener('click', () => userManagementModal.classList.add('hidden'));
+    userManagementModal.addEventListener('click', (e) => { if (e.target === userManagementModal) userManagementModal.classList.add('hidden'); });
+    userManagementList.addEventListener('change', (e) => { if ((e.target as HTMLElement).matches('.role-select')) handleUserRoleChange(e); });
+    userManagementList.addEventListener('click', (e) => { if ((e.target as HTMLElement).matches('.delete-user-btn')) handleDeleteUser(e); });
+
+    // -- Design Generator --
     promptInput.addEventListener('input', () => {
         enhancePromptBtn.disabled = !promptInput.value.trim();
         debouncedSavePrefs();
     });
-    micDesignBtn.addEventListener('click', () => handleMicClick(promptInput, micDesignBtn));
+    companyNameInput.addEventListener('input', debouncedSavePrefs);
+    contactDetailsInput.addEventListener('input', debouncedSavePrefs);
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
-    [companyNameInput, contactDetailsInput].forEach(el => el.addEventListener('input', debouncedSavePrefs));
+    micDesignBtn.addEventListener('click', () => handleMicClick(promptInput, micDesignBtn));
     imageUploadArea.addEventListener('click', () => logoUpload.click());
-    imageUploadArea.addEventListener('dragover', e => { e.preventDefault(); imageUploadArea.classList.add('drag-over'); });
-    imageUploadArea.addEventListener('dragleave', () => imageUploadArea.classList.remove('drag-over'));
-    imageUploadArea.addEventListener('drop', e => { e.preventDefault(); imageUploadArea.classList.remove('drag-over'); handleLogoSelection(e.dataTransfer?.files || null); });
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
+    imageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); imageUploadArea.classList.add('drag-over'); });
+    imageUploadArea.addEventListener('dragleave', () => imageUploadArea.classList.remove('drag-over'));
+    imageUploadArea.addEventListener('drop', (e) => { e.preventDefault(); imageUploadArea.classList.remove('drag-over'); handleLogoSelection(e.dataTransfer?.files || null); });
     removeLogoBtn.addEventListener('click', handleRemoveLogo);
+    applyCropBtn.addEventListener('click', handleApplyCrop);
+    cancelCropBtn.addEventListener('click', handleCancelCrop);
+    cropModal.addEventListener('click', (e) => { if (e.target === cropModal) handleCancelCrop(); });
     logoSizeOptions.forEach(o => o.addEventListener('click', handleLogoSizeSelection));
     logoPositionOptions.forEach(o => o.addEventListener('click', handleLogoPositionSelection));
     paletteOptions.forEach(o => o.addEventListener('click', handlePaletteSelection));
@@ -2926,53 +3334,68 @@ function initialize() {
     sizeOptions.forEach(o => o.addEventListener('click', handleSizeSelection));
     textEffectOptions.forEach(o => o.addEventListener('click', handleTextEffectSelection));
     generateBtn.addEventListener('click', handleGenerateClick);
-    clearPrefsBtn.addEventListener('click', handleClearPrefs);
     downloadBtn.addEventListener('click', handleDownloadClick);
     shareBtn.addEventListener('click', () => openShareModal('design'));
+    clearPrefsBtn.addEventListener('click', handleClearPrefs);
 
-    // Modals
-    applyCropBtn.addEventListener('click', handleApplyCrop);
-    cancelCropBtn.addEventListener('click', handleCancelCrop);
+    // -- Share Modal --
+    shareModal.addEventListener('click', (e) => { if (e.target === shareModal) closeShareModal(); });
     cancelShareBtn.addEventListener('click', closeShareModal);
     generateCaptionBtn.addEventListener('click', handleGenerateCaptionClick);
     shareNowBtn.addEventListener('click', handleShareNowClick);
     
-    // Image Studio
+    // -- Image Studio --
     studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
     studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
     studioImageUploadArea.addEventListener('click', () => studioLogoUpload.click());
     studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
+    studioImageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); studioImageUploadArea.classList.add('drag-over'); });
+    studioImageUploadArea.addEventListener('dragleave', () => studioImageUploadArea.classList.remove('drag-over'));
+    studioImageUploadArea.addEventListener('drop', (e) => { e.preventDefault(); studioImageUploadArea.classList.remove('drag-over'); handleStudioImageUpload(e.dataTransfer?.files || null); });
+    mergeImagesBtn.addEventListener('click', handleMergeImagesClick);
+    resetFiltersBtn.addEventListener('click', resetAllImageFilters);
+    [brightnessSlider, contrastSlider, saturateSlider, blurSlider].forEach(slider => {
+        slider.addEventListener('input', (e) => {
+            const target = e.target as HTMLInputElement;
+            const filter = target.id.split('-')[0] as keyof typeof studioImageFilters;
+            studioImageFilters[filter] = Number(target.value);
+            applyStudioImageFilters();
+        });
+    });
     undoBtn.addEventListener('click', handleUndoClick);
     redoBtn.addEventListener('click', handleRedoClick);
-    brightnessSlider.addEventListener('input', () => { studioImageFilters.brightness = parseInt(brightnessSlider.value); applyStudioImageFilters(); });
-    contrastSlider.addEventListener('input', () => { studioImageFilters.contrast = parseInt(contrastSlider.value); applyStudioImageFilters(); });
-    saturateSlider.addEventListener('input', () => { studioImageFilters.saturate = parseInt(saturateSlider.value); applyStudioImageFilters(); });
-    blurSlider.addEventListener('input', () => { studioImageFilters.blur = parseFloat(blurSlider.value); applyStudioImageFilters(); });
     textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
-    fontFamilySelect.addEventListener('change', handleTextStyleUpdate);
-    fontSizeSlider.addEventListener('input', handleTextStyleUpdate);
-    fontColorPicker.addEventListener('input', handleTextStyleUpdate);
-    fontBoldBtn.addEventListener('click', () => { fontBoldBtn.setAttribute('aria-pressed', String(fontBoldBtn.getAttribute('aria-pressed') !== 'true')); handleTextStyleUpdate(); });
-    fontItalicBtn.addEventListener('click', () => { fontItalicBtn.setAttribute('aria-pressed', String(fontItalicBtn.getAttribute('aria-pressed') !== 'true')); handleTextStyleUpdate(); });
+    [fontFamilySelect, fontSizeSlider, fontColorPicker].forEach(el => el.addEventListener('input', handleTextStyleUpdate));
+    [fontBoldBtn, fontItalicBtn].forEach(btn => {
+        btn.addEventListener('click', () => {
+            const isPressed = btn.getAttribute('aria-pressed') === 'true';
+            btn.setAttribute('aria-pressed', String(!isPressed));
+            handleTextStyleUpdate();
+        });
+    });
     textPositionGrid.forEach(o => o.addEventListener('click', handleTextPositionUpdate));
-    micAiEditBtn.addEventListener('click', () => handleMicClick(aiEditPromptInput, micAiEditBtn));
+    imagePromptInput.addEventListener('input', () => {
+        enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
+        debouncedSaveStudioPrefs();
+    });
+    enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
+    micGenerateImageBtn.addEventListener('click', () => handleMicClick(imagePromptInput, micGenerateImageBtn));
     aiEditPromptInput.addEventListener('input', () => { enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim(); });
+    micAiEditBtn.addEventListener('click', () => handleMicClick(aiEditPromptInput, micAiEditBtn));
     enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
     applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
-    mergeImagesBtn.addEventListener('click', handleMergeImagesClick);
-    imagePromptInput.addEventListener('input', () => { enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim(); debouncedSaveStudioPrefs(); });
-    micGenerateImageBtn.addEventListener('click', () => handleMicClick(imagePromptInput, micGenerateImageBtn));
-    enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
-    styleChips.forEach(chip => chip.addEventListener('click', () => {
-        const style = chip.dataset.style;
-        if (!style) return;
-        chip.classList.toggle('selected');
-        const isSelected = chip.classList.contains('selected');
-        chip.setAttribute('aria-checked', String(isSelected));
-        if (isSelected) selectedImageStyles.add(style);
-        else selectedImageStyles.delete(style);
-        debouncedSaveStudioPrefs();
-    }));
+    styleChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            const style = chip.dataset.style;
+            if (!style) return;
+            chip.classList.toggle('selected');
+            const isSelected = chip.classList.contains('selected');
+            chip.setAttribute('aria-checked', String(isSelected));
+            if (isSelected) selectedImageStyles.add(style);
+            else selectedImageStyles.delete(style);
+            debouncedSaveStudioPrefs();
+        });
+    });
     sizePresetChips.forEach(chip => chip.addEventListener('click', handleSizePresetClick));
     customWidthInput.addEventListener('change', handleCustomDimensionInput);
     customHeightInput.addEventListener('change', handleCustomDimensionInput);
@@ -2980,11 +3403,17 @@ function initialize() {
     generateImageBtn.addEventListener('click', handleGenerateImageClick);
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
     studioShareBtn.addEventListener('click', () => openShareModal('studio'));
-
-    // Social Media Manager
+    
+    // -- Social Media Manager --
+    socialTopicInput.addEventListener('input', debouncedSaveSocialPrefs);
+    socialToneSelect.addEventListener('change', debouncedSaveSocialPrefs);
+    businessSelect.addEventListener('change', (e) => {
+        selectedBusinessId = Number((e.target as HTMLSelectElement).value);
+        debouncedSaveSocialPrefs();
+    });
     manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
-    businessManagerModal.addEventListener('click', e => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
-    businessListContainer.addEventListener('click', e => {
+    businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
+    businessListContainer.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
         const editBtn = target.closest('.edit-btn');
         const deleteBtn = target.closest('.delete-btn');
@@ -2993,40 +3422,55 @@ function initialize() {
     });
     businessForm.addEventListener('submit', handleBusinessFormSubmit);
     cancelBusinessEditBtn.addEventListener('click', resetBusinessForm);
+    selectAllPlatformsBtn.addEventListener('click', () => {
+        if (selectedPlatforms.size === platforms.length) {
+            selectedPlatforms.clear();
+        } else {
+            platforms.forEach(p => selectedPlatforms.add(p.key));
+        }
+        renderSocialPlatforms();
+        debouncedSaveSocialPrefs();
+    });
     brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
     closeBrainstormBtn.addEventListener('click', closeBrainstormModal);
     generateBrainstormIdeasBtn.addEventListener('click', handleBrainstormClick);
     generateRepliesBtn.addEventListener('click', openReplyModal);
     closeReplyModalBtn.addEventListener('click', closeReplyModal);
     generateReplyBtn.addEventListener('click', handleGenerateReplies);
-    refineActionsContainer.addEventListener('click', e => {
-        const target = e.target as HTMLElement;
-        if (target.classList.contains('style-chip')) {
-            refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => chip.classList.remove('selected'));
-            target.classList.add('selected');
-        }
-    });
+    generateSocialBtn.addEventListener('click', handleGenerateSocialClick);
+    suggestTimeBtn.addEventListener('click', handleSuggestTimeClick);
+    schedulePostsBtn.addEventListener('click', handleSchedulePostsClick);
+    socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
+    socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
+    refinePostModal.addEventListener('click', (e) => { if (e.target === refinePostModal) closeRefineModal(); });
     cancelRefineBtn.addEventListener('click', closeRefineModal);
     refineNowBtn.addEventListener('click', handleRefineNowClick);
-    socialTopicInput.addEventListener('input', debouncedSaveSocialPrefs);
-    socialToneSelect.addEventListener('change', debouncedSaveSocialPrefs);
+    refineActionsContainer.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (target.matches('.style-chip')) {
+            refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => {
+                chip.classList.toggle('selected', chip === target);
+                chip.setAttribute('aria-checked', String(chip === target));
+            });
+        }
+    });
 
-
-    // --- INITIAL LOAD ---
+    // Initial load
     loadTheme();
+    loadUsers();
+    loadCurrentUser();
+    updateAuthUI();
     handleLoadPrefs();
     loadStudioPrefs();
     loadSocialPrefs();
+    initializeSpeechRecognition();
 
-    debouncedSavePrefs = createDebouncedSaver(savePrefs);
-    debouncedSaveStudioPrefs = createDebouncedSaver(saveStudioPrefs);
-    debouncedSaveSocialPrefs = createDebouncedSaver(saveSocialPrefs);
-    
+    // Restore last active tab
     const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
     if (lastTab) {
         switchAppTab(lastTab);
     }
-    initializeSpeechRecognition();
 }
 
+// Wait for the DOM to be fully loaded before running the initialization code
 document.addEventListener('DOMContentLoaded', initialize);
