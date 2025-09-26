@@ -531,6 +531,39 @@ input[type="password"]:focus {
 .logo-position-option[data-position="bottom-center"] .position-indicator { bottom: 6px; left: 50%; transform: translateX(-50%); }
 .logo-position-option[data-position="bottom-right"] .position-indicator { bottom: 6px; right: 6px; }
 
+.customization-slider-group {
+    margin-bottom: 1.25rem;
+}
+.slider-label-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+.slider-label-group label {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary-color);
+}
+.slider-label-group span {
+    font-size: 0.9rem;
+    font-weight: 500;
+    background-color: var(--input-bg-color);
+    padding: 0.1rem 0.5rem;
+    border-radius: 6px;
+}
+.slider-input-group {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.slider-input-group input[type="range"] {
+    flex-grow: 1;
+}
+.slider-input-group .btn-icon {
+    flex-shrink: 0;
+}
+
 .palette-options-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));

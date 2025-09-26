@@ -70,6 +70,12 @@ let uploadPlaceholder: HTMLDivElement;
 let logoCustomizationSection: HTMLDivElement;
 let logoSizeOptions: NodeListOf<HTMLDivElement>;
 let logoPositionOptions: NodeListOf<HTMLDivElement>;
+let logoRotationSlider: HTMLInputElement;
+let logoRotationValue: HTMLSpanElement;
+let resetRotationBtn: HTMLButtonElement;
+let logoOpacitySlider: HTMLInputElement;
+let logoOpacityValue: HTMLSpanElement;
+let resetOpacityBtn: HTMLButtonElement;
 let paletteOptions: NodeListOf<HTMLDivElement>;
 let layoutOptions: NodeListOf<HTMLDivElement>;
 let backgroundOptions: NodeListOf<HTMLElement>;
@@ -232,6 +238,8 @@ let selectedSize = 'a4-portrait';
 let selectedTextEffects = new Set<string>();
 let selectedLogoSize = 'medium';
 let selectedLogoPosition = 'top-right';
+let selectedLogoRotation = 0;
+let selectedLogoOpacity = 100;
 
 // Image Studio State
 let uploadedStudioImages: { id: number; src: string }[] = [];
@@ -628,6 +636,8 @@ function savePrefs() {
         textEffects: Array.from(selectedTextEffects),
         logoSize: selectedLogoSize,
         logoPosition: selectedLogoPosition,
+        logoRotation: selectedLogoRotation,
+        logoOpacity: selectedLogoOpacity,
         logoDataUrl: logoDataUrl,
     };
     
@@ -741,6 +751,16 @@ function handleLoadPrefs() {
         });
     }
 
+    // Load Logo Rotation & Opacity
+    selectedLogoRotation = prefs.logoRotation || 0;
+    logoRotationSlider.value = String(selectedLogoRotation);
+    logoRotationValue.textContent = `${selectedLogoRotation}°`;
+    
+    selectedLogoOpacity = prefs.logoOpacity ?? 100;
+    logoOpacitySlider.value = String(selectedLogoOpacity);
+    logoOpacityValue.textContent = `${selectedLogoOpacity}%`;
+
+
     // Load Logo
     if (prefs.logoDataUrl) {
         logoDataUrl = prefs.logoDataUrl;
@@ -771,6 +791,8 @@ function handleClearPrefs() {
     selectedTextEffects.clear();
     selectedLogoSize = 'medium';
     selectedLogoPosition = 'top-right';
+    selectedLogoRotation = 0;
+    selectedLogoOpacity = 100;
 
     // --- Reset the UI to reflect the default state ---
     promptInput.value = '';
@@ -785,6 +807,11 @@ function handleClearPrefs() {
     removeLogoBtn.classList.add('hidden');
     logoCustomizationSection.classList.add('hidden');
     logoUpload.value = '';
+    logoRotationSlider.value = '0';
+    logoRotationValue.textContent = '0°';
+    logoOpacitySlider.value = '100';
+    logoOpacityValue.textContent = '100%';
+
 
     // Reset all selectable options
     [
@@ -945,6 +972,32 @@ function handleLogoPositionSelection(event: Event) {
     });
     target.classList.add('selected');
     target.setAttribute('aria-checked', 'true');
+    debouncedSavePrefs();
+}
+
+function handleLogoRotationChange() {
+    selectedLogoRotation = parseInt(logoRotationSlider.value);
+    logoRotationValue.textContent = `${selectedLogoRotation}°`;
+    debouncedSavePrefs();
+}
+
+function handleLogoOpacityChange() {
+    selectedLogoOpacity = parseInt(logoOpacitySlider.value);
+    logoOpacityValue.textContent = `${selectedLogoOpacity}%`;
+    debouncedSavePrefs();
+}
+
+function handleResetRotation() {
+    selectedLogoRotation = 0;
+    logoRotationSlider.value = '0';
+    logoRotationValue.textContent = '0°';
+    debouncedSavePrefs();
+}
+
+function handleResetOpacity() {
+    selectedLogoOpacity = 100;
+    logoOpacitySlider.value = '100';
+    logoOpacityValue.textContent = '100%';
     debouncedSavePrefs();
 }
 
@@ -1173,6 +1226,13 @@ ${textContent}
                 const positionText = selectedLogoPosition.replace('-', ' ');
                 logoInstruction += ` Place it in the ${positionText} area.`;
             }
+            if (selectedLogoRotation !== 0) {
+                logoInstruction += ` Rotate the logo by ${selectedLogoRotation} degrees.`;
+            }
+            if (selectedLogoOpacity !== 100) {
+                logoInstruction += ` The logo should have an opacity of ${selectedLogoOpacity}%.`;
+            }
+
             
             const textElements = [];
             if (companyName) { textElements.push(`- **Company Name:** "${companyName}" (This must be rendered exactly as written and featured prominently).`); }
@@ -2562,48 +2622,63 @@ async function handleGenerateReplies() {
 
 function renderGeneratedSocialPosts() {
     socialResultsContainer.innerHTML = '';
-    if (generatedSocialContent.length === 0) return;
-
+    if (generatedSocialContent.length === 0) {
+        socialOutputPlaceholder.classList.remove('hidden');
+        socialScheduleControls.classList.add('hidden');
+        return;
+    }
+    
+    socialOutputPlaceholder.classList.add('hidden');
     socialScheduleControls.classList.remove('hidden');
 
     generatedSocialContent.forEach(post => {
         const platformInfo = platforms.find(p => p.key === post.platform);
         const card = document.createElement('div');
         card.className = 'social-post-card';
-        
+
+        let imageHtml = '';
+        if (post.imageUrl) {
+            imageHtml = `<img src="${post.imageUrl}" alt="Generated image for post" class="social-post-image">`;
+        }
+
         card.innerHTML = `
             <div class="social-post-header">
                 ${platformInfo?.icon || ''}
                 <h4>${platformInfo?.name || post.platform}</h4>
             </div>
             <div class="social-post-content">
-                <p>${post.text}</p>
-                ${post.imageUrl ? `<img src="${post.imageUrl}" alt="Generated image for post" class="social-post-image">` : ''}
+                <p>${post.text.replace(/\n/g, '<br>')}</p>
+                ${imageHtml}
             </div>
             <div class="social-post-actions">
-                <button class="btn btn-secondary btn-sm refine-post-btn">Refine</button>
+                <button class="btn btn-secondary refine-post-btn">Refine</button>
+                <button class="btn btn-secondary copy-post-btn">Copy Text</button>
             </div>
         `;
-        
-        card.querySelector('.refine-post-btn')?.addEventListener('click', () => {
-            openRefineModal(post.platform, post.text);
+
+        const refineBtn = card.querySelector('.refine-post-btn');
+        refineBtn?.addEventListener('click', () => openRefineModal(post));
+
+        const copyBtn = card.querySelector('.copy-post-btn');
+        copyBtn?.addEventListener('click', () => {
+            navigator.clipboard.writeText(post.text);
+            const button = copyBtn as HTMLButtonElement;
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            setTimeout(() => { button.textContent = originalText; }, 1500);
         });
-        
+
         socialResultsContainer.appendChild(card);
     });
 }
 
-function openRefineModal(platform: string, originalText: string) {
-    postToRefine = { platform, text: originalText };
-    refineOriginalText.textContent = originalText;
+
+function openRefineModal(post: { platform: string; text: string; }) {
+    postToRefine = post;
+    refineOriginalText.textContent = post.text;
     refineCustomInstruction.value = '';
-    
-    const actionChips = refineActionsContainer.querySelectorAll('.style-chip');
-    actionChips.forEach(chip => {
-        chip.classList.remove('selected');
-        chip.setAttribute('aria-checked', 'false');
-    });
-    
+    // Deselect any previously selected chip
+    refineActionsContainer.querySelectorAll('.style-chip.selected').forEach(chip => chip.classList.remove('selected'));
     refinePostModal.classList.remove('hidden');
 }
 
@@ -2612,13 +2687,12 @@ function closeRefineModal() {
     postToRefine = null;
 }
 
-async function handleRefineNowClick() {
+async function handleRefinePost() {
     if (isRefiningPost || !postToRefine) return;
 
-    const selectedChip = refineActionsContainer.querySelector('.style-chip.selected');
+    const selectedChip = refineActionsContainer.querySelector('.style-chip.selected') as HTMLButtonElement;
     const customInstruction = refineCustomInstruction.value.trim();
-    
-    const instruction = selectedChip ? selectedChip.getAttribute('data-instruction') : customInstruction;
+    const instruction = selectedChip?.dataset.instruction || customInstruction;
 
     if (!instruction) {
         showError("Please select a refinement action or provide a custom instruction.", socialErrorMessage);
@@ -2630,23 +2704,22 @@ async function handleRefineNowClick() {
     refineNowBtn.classList.add('loading');
 
     try {
-        const prompt = `Refine the following social media post for ${postToRefine.platform} based on this instruction: "${instruction}". Return only the refined post text, without any introductory phrases.\n\nOriginal Post:\n"${postToRefine.text}"`;
+        const prompt = `Refine the following social media post based on this instruction: "${instruction}". Return only the refined post text, with no introductory phrases.\n\nOriginal Post:\n"${postToRefine.text}"`;
         
         const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
         const refinedText = response.text.trim();
-        
+
         if (refinedText) {
-            const originalPostIndex = generatedSocialContent.findIndex(p => p.platform === postToRefine?.platform && p.text === postToRefine?.text);
-            if (originalPostIndex !== -1) {
-                generatedSocialContent[originalPostIndex].text = refinedText;
+            // Find the post in the main array and update it
+            const postIndex = generatedSocialContent.findIndex(p => p === postToRefine);
+            if (postIndex > -1) {
+                generatedSocialContent[postIndex].text = refinedText;
                 renderGeneratedSocialPosts();
             }
-            closeRefineModal();
-        } else {
-            showError("The AI couldn't refine the post. Please try again.", socialErrorMessage);
         }
+        closeRefineModal();
 
-    } catch(error) {
+    } catch (error) {
         parseAndShowError(error, socialErrorMessage);
     } finally {
         isRefiningPost = false;
@@ -2655,71 +2728,10 @@ async function handleRefineNowClick() {
     }
 }
 
-async function handleSuggestTimeClick() {
-    if (isSuggestingTime) return;
-
-    if (selectedPlatforms.size === 0) {
-        showError("Please select at least one platform to get a time suggestion.", socialErrorMessage);
-        return;
-    }
-
-    isSuggestingTime = true;
-    suggestTimeBtn.disabled = true;
-    const originalIcon = suggestTimeBtn.innerHTML;
-    suggestTimeBtn.innerHTML = `<div class="loading-spinner" style="width: 18px; height: 18px; border-width: 2px;"></div>`;
-    socialErrorMessage.classList.add('hidden');
-
-    try {
-        const topic = socialTopicInput.value.trim();
-        const platformsText = Array.from(selectedPlatforms).join(', ');
-        const prompt = `Based on general user engagement patterns, what is the optimal date and time to post about "${topic}" on these platforms: ${platformsText}? Provide the single best time considering all platforms. Respond with only a JSON object following this schema. The current date is ${new Date().toISOString()}.`;
-
-        const responseSchema = {
-            type: Type.OBJECT,
-            properties: {
-                optimalTime: {
-                    type: Type.STRING,
-                    description: "The suggested optimal posting time in 'YYYY-MM-DDTHH:mm' format."
-                }
-            }
-        };
-
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: responseSchema,
-            },
-        });
-        
-        const jsonStr = response.text.trim();
-        const suggested = JSON.parse(jsonStr);
-
-        if (suggested.optimalTime) {
-            // Basic validation
-            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(suggested.optimalTime)) {
-                scheduleDateInput.value = suggested.optimalTime;
-                debouncedSaveSocialPrefs();
-            } else {
-                 showError("AI returned an invalid time format. Please try again.", socialErrorMessage);
-            }
-        } else {
-            showError("The AI couldn't suggest a time. Please try again.", socialErrorMessage);
-        }
-
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-    } finally {
-        isSuggestingTime = false;
-        suggestTimeBtn.disabled = false;
-        suggestTimeBtn.innerHTML = originalIcon;
-    }
-}
 
 async function handleGenerateSocialClick() {
     if (isGeneratingSocial) return;
-
+    
     const topic = socialTopicInput.value.trim();
     if (!topic) {
         showError("Please enter a topic for your social media posts.", socialErrorMessage);
@@ -2729,32 +2741,26 @@ async function handleGenerateSocialClick() {
         showError("Please select at least one social media platform.", socialErrorMessage);
         return;
     }
-    
+
     isGeneratingSocial = true;
     generateSocialBtn.disabled = true;
     generateSocialBtn.classList.add('loading');
-    socialOutputPlaceholder.classList.add('hidden');
-    socialResultsContainer.innerHTML = '';
     socialLoader.classList.remove('hidden');
+    socialResultsContainer.innerHTML = '';
+    socialOutputPlaceholder.classList.add('hidden');
     socialErrorMessage.classList.add('hidden');
 
     try {
         const business = businesses.find(b => b.id === selectedBusinessId);
-        const tone = socialToneSelect.value;
-        const platformsText = Array.from(selectedPlatforms).join(', ');
-
-        let businessContext = `for a business named "${business?.name || 'our company'}"`;
-        if (business?.socials.general) {
-            businessContext += ` with the website ${business.socials.general}`;
-        }
+        const platformList = Array.from(selectedPlatforms).join(', ');
 
         const prompt = `
-        Generate one social media post for each of the following platforms: ${platformsText}.
-        The posts should be about: "${topic}".
-        Adopt a "${tone}" tone of voice.
-        The posts should be tailored ${businessContext}.
-        
-        Return a JSON array where each object represents a post and has "platform" and "text" keys. For example: [{"platform": "linkedin", "text": "Post content..."}]
+            You are a social media manager for a business named "${business?.name}".
+            Your task is to generate engaging social media posts about the following topic: "${topic}".
+            The tone of voice should be: ${socialTone}.
+            Generate one post for each of these platforms: ${platformList}.
+            Tailor the content length, style, and hashtags for each specific platform. 
+            For platforms like Instagram and Facebook, suggest a relevant image by providing a descriptive image prompt.
         `;
 
         const responseSchema = {
@@ -2762,10 +2768,10 @@ async function handleGenerateSocialClick() {
             items: {
                 type: Type.OBJECT,
                 properties: {
-                    platform: { type: Type.STRING, description: "The key of the platform (e.g., 'linkedin')." },
-                    text: { type: Type.STRING, description: "The generated post content." }
-                },
-                required: ["platform", "text"]
+                    platform: { type: Type.STRING, description: 'The social media platform (e.g., "linkedin", "twitter").' },
+                    text: { type: Type.STRING, description: 'The full text content for the post, including hashtags.' },
+                    image_prompt: { type: Type.STRING, description: 'A descriptive prompt for an AI to generate a relevant image for this post. Only for visual platforms like Instagram.' }
+                }
             }
         };
 
@@ -2773,25 +2779,39 @@ async function handleGenerateSocialClick() {
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
-                responseMimeType: "application/json",
+                responseMimeType: 'application/json',
                 responseSchema: responseSchema
             }
         });
         
-        const jsonStr = response.text.trim();
-        const posts = JSON.parse(jsonStr);
+        const jsonText = response.text.trim();
+        generatedSocialContent = JSON.parse(jsonText);
+        
+        // Let's also generate images where an image prompt was provided
+        const imageGenerationPromises = generatedSocialContent.map(async (post) => {
+            if (post.image_prompt) {
+                try {
+                     const imageResponse = await ai.models.generateImages({
+                        model: 'imagen-4.0-generate-001',
+                        prompt: post.image_prompt,
+                        config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' },
+                    });
+                    if (imageResponse.generatedImages && imageResponse.generatedImages.length > 0) {
+                        post.imageUrl = `data:image/png;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+                    }
+                } catch(e) {
+                    console.error(`Failed to generate image for ${post.platform}:`, e);
+                    // Continue without image if generation fails
+                }
+            }
+            return post;
+        });
 
-        if (Array.isArray(posts) && posts.length > 0) {
-            generatedSocialContent = posts;
-            renderGeneratedSocialPosts();
-        } else {
-             showError("The AI couldn't generate posts. Please try refining your topic.", socialErrorMessage);
-             socialOutputPlaceholder.classList.remove('hidden');
-        }
+        generatedSocialContent = await Promise.all(imageGenerationPromises);
+        renderGeneratedSocialPosts();
 
     } catch (error) {
         parseAndShowError(error, socialErrorMessage);
-        socialOutputPlaceholder.classList.remove('hidden');
     } finally {
         isGeneratingSocial = false;
         generateSocialBtn.disabled = false;
@@ -2800,54 +2820,70 @@ async function handleGenerateSocialClick() {
     }
 }
 
-function handleSchedulePostsClick() {
-    if (generatedSocialContent.length === 0 || !scheduleDateInput.value) {
-        showError("Please generate posts and select a date/time before scheduling.", socialErrorMessage);
-        return;
-    }
 
-    const scheduleTime = new Date(scheduleDateInput.value);
-    
-    if (isNaN(scheduleTime.getTime())) {
-        showError("Please enter a valid date and time.", socialErrorMessage);
-        return;
-    }
+async function handleSuggestTime() {
+    if (isSuggestingTime) return;
+    isSuggestingTime = true;
+    suggestTimeBtn.classList.add('loading');
+    suggestTimeBtn.disabled = true;
 
-    const confirmation = confirm(
-        `You are about to schedule ${generatedSocialContent.length} posts for ${scheduleTime.toLocaleString()}.\n\nAre you sure you want to proceed?`
-    );
-    
-    if (confirmation) {
-        const newScheduledPosts = generatedSocialContent.map(post => ({
-            ...post,
-            scheduleTime: scheduleTime,
-            businessId: selectedBusinessId
-        }));
+    try {
+        const prompt = "Based on general social media engagement data, what is a good time to post tomorrow? Provide the answer as a date and time in YYYY-MM-DDTHH:MM format, assuming today is " + new Date().toISOString().split('T')[0] + ". Only return the datetime string.";
+        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
+        const suggestedTime = response.text.trim();
         
-        scheduledPosts.push(...newScheduledPosts);
-        
-        generatedSocialContent = [];
-        renderGeneratedSocialPosts();
-        socialScheduleControls.classList.add('hidden');
-        
-        debouncedSaveSocialPrefs();
-        renderScheduledPosts();
-        
-        handleSocialTabSwitch('scheduled');
+        // Basic validation
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(suggestedTime)) {
+            scheduleDateInput.value = suggestedTime;
+        } else {
+            // Fallback if parsing fails
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            tomorrow.setHours(10, 0, 0, 0); // Default to 10 AM tomorrow
+            scheduleDateInput.value = tomorrow.toISOString().slice(0, 16);
+        }
+
+    } catch(error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isSuggestingTime = false;
+        suggestTimeBtn.classList.remove('loading');
+        suggestTimeBtn.disabled = false;
     }
 }
 
+function handleSchedulePosts() {
+    const scheduleTimeStr = scheduleDateInput.value;
+    if (!scheduleTimeStr) {
+        showError("Please select a date and time to schedule.", socialErrorMessage);
+        return;
+    }
+    const scheduleTime = new Date(scheduleTimeStr);
+    if (isNaN(scheduleTime.getTime())) {
+        showError("Invalid date format.", socialErrorMessage);
+        return;
+    }
 
-// --- SPEECH RECOGNITION ---
+    generatedSocialContent.forEach(post => {
+        scheduledPosts.push({ ...post, scheduleTime });
+    });
+
+    generatedSocialContent = [];
+    renderGeneratedSocialPosts();
+    renderScheduledPosts();
+    debouncedSaveSocialPrefs();
+    handleSocialTabSwitch('scheduled');
+}
+
+// --- MICROPHONE / SPEECH RECOGNITION ---
 function initializeSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-        [micDesignBtn, micGenerateImageBtn, micAiEditBtn].forEach(btn => {
-            if (btn) btn.style.display = 'none';
-        });
-        console.warn("Speech Recognition API not supported in this browser.");
+        console.warn("Speech recognition not supported in this browser.");
+        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => btn.style.display = 'none');
         return;
     }
+
     recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.lang = 'en-US';
@@ -2855,146 +2891,105 @@ function initializeSpeechRecognition() {
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        if (activeMic && activeMic.input) {
+        if (activeMic) {
+            const transcript = event.results[0][0].transcript;
             activeMic.input.value += (activeMic.input.value ? ' ' : '') + transcript;
-            const inputEvent = new Event('input', { bubbles: true, cancelable: true });
-            activeMic.input.dispatchEvent(inputEvent);
+            activeMic.input.dispatchEvent(new Event('input', { bubbles: true })); // Trigger input event for auto-save
         }
+    };
+
+    recognition.onspeechend = () => {
+        stopListening();
     };
 
     recognition.onerror = (event: any) => {
-        console.error("Speech recognition error:", event.error);
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-            alert("Microphone access was denied. Please allow microphone access in your browser settings to use this feature.");
-        }
+        console.error("Speech recognition error", event.error);
+        stopListening();
     };
     
     recognition.onend = () => {
-        toggleListening(false);
+        if (isListening) {
+            stopListening();
+        }
     };
 }
 
-function handleMicClick(input: HTMLTextAreaElement, button: HTMLButtonElement) {
-    if (!recognition) {
-        alert("Speech recognition is not supported by your browser.");
-        return;
-    }
+function startListening(input: HTMLTextAreaElement, button: HTMLButtonElement) {
+    if (isListening || !recognition) return;
     
-    if (isListening) {
-        recognition.stop();
-    } else {
-        activeMic = { input, button };
-        recognition.start();
-        toggleListening(true);
-    }
+    isListening = true;
+    activeMic = { input, button };
+    button.classList.add('listening');
+    recognition.start();
 }
 
-function toggleListening(isNowListening: boolean) {
-    isListening = isNowListening;
+function stopListening() {
+    if (!isListening || !recognition) return;
+    
+    recognition.stop();
     if (activeMic) {
-        activeMic.button.classList.toggle('listening', isNowListening);
+        activeMic.button.classList.remove('listening');
     }
-    if (!isNowListening) {
-        [micDesignBtn, micGenerateImageBtn, micAiEditBtn].forEach(btn => btn?.classList.remove('listening'));
-        activeMic = null;
+    isListening = false;
+    activeMic = null;
+}
+
+function handleMicClick(e: MouseEvent) {
+    const target = e.currentTarget as HTMLButtonElement;
+    if (isListening) {
+        stopListening();
+    } else {
+        if (target === micDesignBtn) startListening(promptInput, micDesignBtn);
+        else if (target === micAiEditBtn) startListening(aiEditPromptInput, micAiEditBtn);
+        else if (target === micGenerateImageBtn) startListening(imagePromptInput, micGenerateImageBtn);
     }
 }
 
 // --- AUTHENTICATION FUNCTIONS ---
-async function hashPassword(password: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(password);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-    const passwordHash = await hashPassword(password);
-    return passwordHash === hash;
-}
-
-function saveUsers() {
-    localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
-}
+// (This is a mock authentication system using localStorage)
 
 function loadUsers() {
     const usersString = localStorage.getItem(USERS_KEY);
-    if (usersString) {
-        allUsers = JSON.parse(usersString);
-    } else {
-        // Create a default admin user if none exist
-        hashPassword('admin123').then(hash => {
-            allUsers = [{ email: 'admin@example.com', passwordHash: hash, role: 'admin', isVerified: true }];
-            saveUsers();
-        });
+    allUsers = usersString ? JSON.parse(usersString) : [];
+    // Add a default admin if none exist for demo purposes
+    if (allUsers.length === 0) {
+        allUsers.push({ email: 'admin@example.com', passwordHash: 'admin123', role: 'admin', isVerified: true, name: 'Admin User' });
+        localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
     }
 }
 
 function loadCurrentUser() {
     const userString = localStorage.getItem(CURRENT_USER_KEY);
-    if (userString) {
-        currentUser = JSON.parse(userString);
-    }
+    currentUser = userString ? JSON.parse(userString) : null;
+    updateAuthUI();
 }
 
 function updateAuthUI() {
     if (currentUser) {
-        authControls.classList.add('logged-in');
         loginBtn.classList.add('hidden');
         userDisplay.classList.remove('hidden');
-        userNameSpan.textContent = currentUser.name || currentUser.email.split('@')[0];
-        
+        userNameSpan.textContent = currentUser.name || currentUser.email;
         if (!currentUser.isVerified) {
             userVerificationNotice.classList.remove('hidden');
-            userVerificationNotice.innerHTML = `(Unverified) <button class="link-btn resend-verification-btn">Resend</button>`;
-            userVerificationNotice.querySelector('.resend-verification-btn')?.addEventListener('click', () => {
-                alert("Verification email resent (simulated).");
-            });
+            userVerificationNotice.innerHTML = `(Unverified) <button class="link-btn">Resend</button>`;
         } else {
             userVerificationNotice.classList.add('hidden');
         }
-
         manageUsersBtn.classList.toggle('hidden', currentUser.role !== 'admin');
     } else {
-        authControls.classList.remove('logged-in');
         loginBtn.classList.remove('hidden');
         userDisplay.classList.add('hidden');
     }
 }
 
-function openLoginModal() {
-    loginModal.classList.remove('hidden');
-    showLoginTab(); // Default to login tab
-}
-
-function closeLoginModal() {
-    loginModal.classList.add('hidden');
-}
-
-function showLoginTab() {
-    loginTabBtn.classList.add('active');
-    signupTabBtn.classList.remove('active');
-    loginTabContent.classList.remove('hidden');
-    signupTabContent.classList.add('hidden');
-}
-
-function showSignupTab() {
-    loginTabBtn.classList.remove('active');
-    signupTabBtn.classList.add('active');
-    loginTabContent.classList.add('hidden');
-    signupTabContent.classList.remove('hidden');
-}
-
-async function handleLogin(event: Event) {
-    event.preventDefault();
+function handleLogin(e: Event) {
+    e.preventDefault();
     loginErrorMessage.classList.add('hidden');
     const email = loginEmailInput.value;
     const password = loginPasswordInput.value;
+    const user = allUsers.find(u => u.email === email && u.passwordHash === password);
 
-    const user = allUsers.find(u => u.email === email);
-    if (user && await verifyPassword(password, user.passwordHash)) {
+    if (user) {
         currentUser = user;
         localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
         updateAuthUI();
@@ -3005,8 +3000,8 @@ async function handleLogin(event: Event) {
     }
 }
 
-async function handleSignup(event: Event) {
-    event.preventDefault();
+function handleSignup(e: Event) {
+    e.preventDefault();
     signupErrorMessage.classList.add('hidden');
     const name = signupNameInput.value;
     const email = signupEmailInput.value;
@@ -3018,16 +3013,14 @@ async function handleSignup(event: Event) {
         return;
     }
 
-    const passwordHash = await hashPassword(password);
-    const newUser: User = { name, email, passwordHash, role: 'user', isVerified: false };
+    const newUser: User = { name, email, passwordHash: password, role: 'user', isVerified: false };
     allUsers.push(newUser);
-    saveUsers();
-
+    localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
+    
     currentUser = newUser;
     localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
     updateAuthUI();
     closeLoginModal();
-    alert("Signup successful! A verification email has been sent (simulated).");
 }
 
 function handleLogout() {
@@ -3036,9 +3029,42 @@ function handleLogout() {
     updateAuthUI();
 }
 
+function openLoginModal() {
+    loginModal.classList.remove('hidden');
+    loginErrorMessage.classList.add('hidden');
+    signupErrorMessage.classList.add('hidden');
+    loginForm.reset();
+    signupForm.reset();
+    // Default to login tab
+    switchAuthTab('login');
+}
+
+function closeLoginModal() {
+    loginModal.classList.add('hidden');
+}
+
+function switchAuthTab(tab: 'login' | 'signup') {
+    if (tab === 'login') {
+        loginTabBtn.classList.add('active');
+        signupTabBtn.classList.remove('active');
+        loginTabContent.classList.remove('hidden');
+        signupTabContent.classList.add('hidden');
+    } else {
+        loginTabBtn.classList.remove('active');
+        signupTabBtn.classList.add('active');
+        loginTabContent.classList.add('hidden');
+        signupTabContent.classList.remove('hidden');
+    }
+}
+
+// --- User Management (Admin) ---
 function openUserManagementModal() {
     renderUserManagementList();
     userManagementModal.classList.remove('hidden');
+}
+
+function closeUserManagementModal() {
+    userManagementModal.classList.add('hidden');
 }
 
 function renderUserManagementList() {
@@ -3046,49 +3072,42 @@ function renderUserManagementList() {
     allUsers.forEach(user => {
         const item = document.createElement('div');
         item.className = 'user-management-item';
+        const isAdmin = user.role === 'admin';
+        const isCurrentUser = user.email === currentUser?.email;
         item.innerHTML = `
             <span class="user-management-item-email">${user.email}</span>
             <div class="user-management-item-actions">
-                <select class="format-select role-select" data-email="${user.email}">
-                    <option value="user" ${user.role === 'user' ? 'selected' : ''}>User</option>
-                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
+                <select class="format-select user-role-select" ${isCurrentUser ? 'disabled' : ''}>
+                    <option value="user" ${!isAdmin ? 'selected' : ''}>User</option>
+                    <option value="admin" ${isAdmin ? 'selected' : ''}>Admin</option>
                 </select>
-                <button class="btn btn-secondary delete-user-btn" data-email="${user.email}">Delete</button>
+                <button class="btn delete-user-btn" ${isCurrentUser ? 'disabled' : ''}>Delete</button>
             </div>
         `;
+        const roleSelect = item.querySelector('.user-role-select') as HTMLSelectElement;
+        roleSelect.addEventListener('change', () => {
+            user.role = roleSelect.value as 'user' | 'admin';
+            localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
+        });
+
+        const deleteBtn = item.querySelector('.delete-user-btn') as HTMLButtonElement;
+        deleteBtn.addEventListener('click', () => {
+            if (confirm(`Are you sure you want to delete user ${user.email}?`)) {
+                allUsers = allUsers.filter(u => u.email !== user.email);
+                localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
+                renderUserManagementList();
+            }
+        });
+        
         userManagementList.appendChild(item);
     });
 }
 
-function handleUserRoleChange(event: Event) {
-    const target = event.target as HTMLSelectElement;
-    const email = target.dataset.email;
-    const newRole = target.value as 'user' | 'admin';
-    const user = allUsers.find(u => u.email === email);
-    if (user) {
-        user.role = newRole;
-        saveUsers();
-    }
-}
-
-function handleDeleteUser(event: Event) {
-    const target = event.target as HTMLButtonElement;
-    const email = target.dataset.email;
-    if (email === currentUser?.email) {
-        alert("You cannot delete your own account.");
-        return;
-    }
-    if (confirm(`Are you sure you want to delete the user: ${email}?`)) {
-        allUsers = allUsers.filter(u => u.email !== email);
-        saveUsers();
-        renderUserManagementList();
-    }
-}
 
 // --- INITIALIZATION ---
 function initialize() {
-    // Query selectors
-    // -- App Shell --
+    // --- QUERY DOM ELEMENTS ---
+    // App Shell
     themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
     tabImageStudio = document.getElementById('tab-image-studio') as HTMLButtonElement;
@@ -3096,7 +3115,8 @@ function initialize() {
     designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
     imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
     socialMediaManagerPage = document.getElementById('social-media-manager-page') as HTMLDivElement;
-    // -- Auth --
+
+    // Auth
     authControls = document.getElementById('auth-controls') as HTMLDivElement;
     loginBtn = document.getElementById('login-btn') as HTMLButtonElement;
     userDisplay = document.getElementById('user-display') as HTMLDivElement;
@@ -3124,11 +3144,13 @@ function initialize() {
     userManagementModal = document.getElementById('user-management-modal') as HTMLDivElement;
     userManagementList = document.getElementById('user-management-list') as HTMLDivElement;
     closeUserManagementBtn = document.getElementById('close-user-management-btn') as HTMLButtonElement;
-    // -- Auto-Save --
+
+    // Auto-Save
     designSaveIndicator = document.getElementById('design-save-indicator') as HTMLDivElement;
     studioSaveIndicator = document.getElementById('studio-save-indicator') as HTMLDivElement;
     socialSaveIndicator = document.getElementById('social-save-indicator') as HTMLDivElement;
-    // -- Design Generator --
+
+    // Design Generator
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
     micDesignBtn = document.getElementById('mic-design-btn') as HTMLButtonElement;
@@ -3143,6 +3165,12 @@ function initialize() {
     logoCustomizationSection = document.getElementById('logo-customization') as HTMLDivElement;
     logoSizeOptions = document.querySelectorAll('.logo-size-option');
     logoPositionOptions = document.querySelectorAll('.logo-position-option');
+    logoRotationSlider = document.getElementById('logo-rotation-slider') as HTMLInputElement;
+    logoRotationValue = document.getElementById('logo-rotation-value') as HTMLSpanElement;
+    resetRotationBtn = document.getElementById('reset-rotation-btn') as HTMLButtonElement;
+    logoOpacitySlider = document.getElementById('logo-opacity-slider') as HTMLInputElement;
+    logoOpacityValue = document.getElementById('logo-opacity-value') as HTMLSpanElement;
+    resetOpacityBtn = document.getElementById('reset-opacity-btn') as HTMLButtonElement;
     paletteOptions = document.querySelectorAll('.palette-option');
     layoutOptions = document.querySelectorAll('.layout-option');
     backgroundOptions = document.querySelectorAll('.background-option');
@@ -3162,19 +3190,22 @@ function initialize() {
     shareBtn = document.getElementById('share-btn') as HTMLButtonElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
-    // -- Crop Modal --
+
+    // Crop Modal
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
     cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
-    // -- Share Modal --
+    
+    // Share Modal
     shareModal = document.getElementById('share-modal') as HTMLDivElement;
     shareImagePreview = document.getElementById('share-image-preview') as HTMLImageElement;
     shareCaptionInput = document.getElementById('share-caption-input') as HTMLTextAreaElement;
     generateCaptionBtn = document.getElementById('generate-caption-btn') as HTMLButtonElement;
     shareNowBtn = document.getElementById('share-now-btn') as HTMLButtonElement;
     cancelShareBtn = document.getElementById('cancel-share-btn') as HTMLButtonElement;
-    // -- Image Studio --
+
+    // Image Studio
     studioTabEdit = document.getElementById('studio-tab-edit') as HTMLButtonElement;
     studioTabGenerate = document.getElementById('studio-tab-generate') as HTMLButtonElement;
     studioEditPanel = document.getElementById('studio-edit-panel') as HTMLDivElement;
@@ -3209,7 +3240,7 @@ function initialize() {
     imagePromptInput = document.getElementById('image-prompt-input') as HTMLTextAreaElement;
     micGenerateImageBtn = document.getElementById('mic-generate-image-btn') as HTMLButtonElement;
     enhanceImagePromptBtn = document.getElementById('enhance-image-prompt-btn') as HTMLButtonElement;
-    styleChips = document.querySelectorAll('#studio-generate-panel .style-chip');
+    styleChips = document.querySelectorAll('#studio-generate-panel .style-chip:not(.size-preset-chip)');
     sizePresetChips = document.querySelectorAll('.size-preset-chip');
     customWidthInput = document.getElementById('custom-width-input') as HTMLInputElement;
     customHeightInput = document.getElementById('custom-height-input') as HTMLInputElement;
@@ -3229,7 +3260,8 @@ function initialize() {
     studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLButtonElement;
     studioShareBtn = document.getElementById('studio-share-btn') as HTMLButtonElement;
     studioErrorMessage = document.getElementById('studio-error-message') as HTMLDivElement;
-    // -- Social Media Manager --
+    
+    // Social Media Manager
     businessSelect = document.getElementById('business-select') as HTMLSelectElement;
     manageBusinessesBtn = document.getElementById('manage-businesses-btn') as HTMLButtonElement;
     socialTopicInput = document.getElementById('social-topic-input') as HTMLTextAreaElement;
@@ -3281,196 +3313,189 @@ function initialize() {
     cancelRefineBtn = document.getElementById('cancel-refine-btn') as HTMLButtonElement;
     refineNowBtn = document.getElementById('refine-now-btn') as HTMLButtonElement;
 
-    // Initialize debounced savers
-    debouncedSavePrefs = createDebouncedSaver(savePrefs);
-    debouncedSaveStudioPrefs = createDebouncedSaver(saveStudioPrefs);
-    debouncedSaveSocialPrefs = createDebouncedSaver(saveSocialPrefs);
+    // --- SETUP AUTO-SAVING ---
+    debouncedSavePrefs = createDebouncedSaver(savePrefs, 700);
+    debouncedSaveStudioPrefs = createDebouncedSaver(saveStudioPrefs, 700);
+    debouncedSaveSocialPrefs = createDebouncedSaver(saveSocialPrefs, 700);
 
-    // Event listeners
-    // -- App Shell --
+    // --- INITIAL LOAD ---
+    loadTheme();
+    loadUsers();
+    loadCurrentUser();
+    handleLoadPrefs();
+    loadStudioPrefs();
+    loadSocialPrefs();
+    
+    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
+    if (lastTab) {
+        switchAppTab(lastTab);
+    }
+
+    initializeSpeechRecognition();
+
+    // --- ATTACH EVENT LISTENERS ---
+    // App Shell
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
-    
-    // -- Auth --
+
+    // Auth
     loginBtn.addEventListener('click', openLoginModal);
     logoutBtn.addEventListener('click', handleLogout);
     loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
-    loginTabBtn.addEventListener('click', showLoginTab);
-    signupTabBtn.addEventListener('click', showSignupTab);
+    loginTabBtn.addEventListener('click', () => switchAuthTab('login'));
+    signupTabBtn.addEventListener('click', () => switchAuthTab('signup'));
     loginForm.addEventListener('submit', handleLogin);
     signupForm.addEventListener('submit', handleSignup);
     manageUsersBtn.addEventListener('click', openUserManagementModal);
-    closeUserManagementBtn.addEventListener('click', () => userManagementModal.classList.add('hidden'));
-    userManagementModal.addEventListener('click', (e) => { if (e.target === userManagementModal) userManagementModal.classList.add('hidden'); });
-    userManagementList.addEventListener('change', (e) => { if ((e.target as HTMLElement).matches('.role-select')) handleUserRoleChange(e); });
-    userManagementList.addEventListener('click', (e) => { if ((e.target as HTMLElement).matches('.delete-user-btn')) handleDeleteUser(e); });
+    userManagementModal.addEventListener('click', (e) => { if (e.target === userManagementModal) closeUserManagementModal(); });
+    closeUserManagementBtn.addEventListener('click', closeUserManagementModal);
 
-    // -- Design Generator --
+    // Design Generator
     promptInput.addEventListener('input', () => {
         enhancePromptBtn.disabled = !promptInput.value.trim();
         debouncedSavePrefs();
     });
-    companyNameInput.addEventListener('input', debouncedSavePrefs);
-    contactDetailsInput.addEventListener('input', debouncedSavePrefs);
+    [companyNameInput, contactDetailsInput].forEach(el => el.addEventListener('input', debouncedSavePrefs));
+    micDesignBtn.addEventListener('click', handleMicClick);
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
-    micDesignBtn.addEventListener('click', () => handleMicClick(promptInput, micDesignBtn));
     imageUploadArea.addEventListener('click', () => logoUpload.click());
-    logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
     imageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); imageUploadArea.classList.add('drag-over'); });
     imageUploadArea.addEventListener('dragleave', () => imageUploadArea.classList.remove('drag-over'));
     imageUploadArea.addEventListener('drop', (e) => { e.preventDefault(); imageUploadArea.classList.remove('drag-over'); handleLogoSelection(e.dataTransfer?.files || null); });
+    logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
     removeLogoBtn.addEventListener('click', handleRemoveLogo);
     applyCropBtn.addEventListener('click', handleApplyCrop);
     cancelCropBtn.addEventListener('click', handleCancelCrop);
-    cropModal.addEventListener('click', (e) => { if (e.target === cropModal) handleCancelCrop(); });
-    logoSizeOptions.forEach(o => o.addEventListener('click', handleLogoSizeSelection));
-    logoPositionOptions.forEach(o => o.addEventListener('click', handleLogoPositionSelection));
-    paletteOptions.forEach(o => o.addEventListener('click', handlePaletteSelection));
-    layoutOptions.forEach(o => o.addEventListener('click', handleLayoutSelection));
-    backgroundOptions.forEach(o => o.addEventListener('click', handleBackgroundSelection));
-    fontOptions.forEach(o => o.addEventListener('click', handleFontSelection));
-    sizeOptions.forEach(o => o.addEventListener('click', handleSizeSelection));
-    textEffectOptions.forEach(o => o.addEventListener('click', handleTextEffectSelection));
+    logoSizeOptions.forEach(option => option.addEventListener('click', handleLogoSizeSelection));
+    logoPositionOptions.forEach(option => option.addEventListener('click', handleLogoPositionSelection));
+    logoRotationSlider.addEventListener('input', handleLogoRotationChange);
+    logoOpacitySlider.addEventListener('input', handleLogoOpacityChange);
+    resetRotationBtn.addEventListener('click', handleResetRotation);
+    resetOpacityBtn.addEventListener('click', handleResetOpacity);
+    paletteOptions.forEach(option => option.addEventListener('click', handlePaletteSelection));
+    layoutOptions.forEach(option => option.addEventListener('click', handleLayoutSelection));
+    backgroundOptions.forEach(option => option.addEventListener('click', handleBackgroundSelection));
+    fontOptions.forEach(option => option.addEventListener('click', handleFontSelection));
+    sizeOptions.forEach(option => option.addEventListener('click', handleSizeSelection));
+    textEffectOptions.forEach(option => option.addEventListener('click', handleTextEffectSelection));
     generateBtn.addEventListener('click', handleGenerateClick);
+    clearPrefsBtn.addEventListener('click', handleClearPrefs);
     downloadBtn.addEventListener('click', handleDownloadClick);
     shareBtn.addEventListener('click', () => openShareModal('design'));
-    clearPrefsBtn.addEventListener('click', handleClearPrefs);
 
-    // -- Share Modal --
-    shareModal.addEventListener('click', (e) => { if (e.target === shareModal) closeShareModal(); });
+    // Share Modal
     cancelShareBtn.addEventListener('click', closeShareModal);
+    shareModal.addEventListener('click', (e) => { if (e.target === shareModal) closeShareModal(); });
     generateCaptionBtn.addEventListener('click', handleGenerateCaptionClick);
     shareNowBtn.addEventListener('click', handleShareNowClick);
     
-    // -- Image Studio --
-    studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
+    // Image Studio
     studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
+    studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
     studioImageUploadArea.addEventListener('click', () => studioLogoUpload.click());
-    studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
     studioImageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); studioImageUploadArea.classList.add('drag-over'); });
     studioImageUploadArea.addEventListener('dragleave', () => studioImageUploadArea.classList.remove('drag-over'));
     studioImageUploadArea.addEventListener('drop', (e) => { e.preventDefault(); studioImageUploadArea.classList.remove('drag-over'); handleStudioImageUpload(e.dataTransfer?.files || null); });
-    mergeImagesBtn.addEventListener('click', handleMergeImagesClick);
+    studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
+    undoBtn.addEventListener('click', handleUndoClick);
+    redoBtn.addEventListener('click', handleRedoClick);
     resetFiltersBtn.addEventListener('click', resetAllImageFilters);
     [brightnessSlider, contrastSlider, saturateSlider, blurSlider].forEach(slider => {
         slider.addEventListener('input', (e) => {
             const target = e.target as HTMLInputElement;
-            const filter = target.id.split('-')[0] as keyof typeof studioImageFilters;
-            studioImageFilters[filter] = Number(target.value);
+            studioImageFilters[target.id.split('-')[0] as keyof typeof studioImageFilters] = Number(target.value);
             applyStudioImageFilters();
         });
     });
-    undoBtn.addEventListener('click', handleUndoClick);
-    redoBtn.addEventListener('click', handleRedoClick);
     textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
     [fontFamilySelect, fontSizeSlider, fontColorPicker].forEach(el => el.addEventListener('input', handleTextStyleUpdate));
-    [fontBoldBtn, fontItalicBtn].forEach(btn => {
-        btn.addEventListener('click', () => {
-            const isPressed = btn.getAttribute('aria-pressed') === 'true';
-            btn.setAttribute('aria-pressed', String(!isPressed));
-            handleTextStyleUpdate();
-        });
-    });
-    textPositionGrid.forEach(o => o.addEventListener('click', handleTextPositionUpdate));
+    [fontBoldBtn, fontItalicBtn].forEach(btn => btn.addEventListener('click', () => {
+        const isPressed = btn.getAttribute('aria-pressed') === 'true';
+        btn.setAttribute('aria-pressed', String(!isPressed));
+        handleTextStyleUpdate();
+    }));
+    textPositionGrid.forEach(pos => pos.addEventListener('click', handleTextPositionUpdate));
+    aiEditPromptInput.addEventListener('input', () => { enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim(); });
+    micAiEditBtn.addEventListener('click', handleMicClick);
+    enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
+    applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
+    mergePromptInput.addEventListener('input', () => { mergeImagesBtn.disabled = !mergePromptInput.value.trim() || uploadedStudioImages.length < 2; });
+    mergeImagesBtn.addEventListener('click', handleMergeImagesClick);
     imagePromptInput.addEventListener('input', () => {
         enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
         debouncedSaveStudioPrefs();
     });
+    micGenerateImageBtn.addEventListener('click', handleMicClick);
     enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
-    micGenerateImageBtn.addEventListener('click', () => handleMicClick(imagePromptInput, micGenerateImageBtn));
-    aiEditPromptInput.addEventListener('input', () => { enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim(); });
-    micAiEditBtn.addEventListener('click', () => handleMicClick(aiEditPromptInput, micAiEditBtn));
-    enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
-    applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
-    styleChips.forEach(chip => {
-        chip.addEventListener('click', () => {
-            const style = chip.dataset.style;
-            if (!style) return;
-            chip.classList.toggle('selected');
-            const isSelected = chip.classList.contains('selected');
-            chip.setAttribute('aria-checked', String(isSelected));
-            if (isSelected) selectedImageStyles.add(style);
-            else selectedImageStyles.delete(style);
-            debouncedSaveStudioPrefs();
-        });
-    });
+    styleChips.forEach(chip => chip.addEventListener('click', () => {
+        const style = chip.dataset.style;
+        if (!style) return;
+        chip.classList.toggle('selected');
+        const isSelected = chip.classList.contains('selected');
+        chip.setAttribute('aria-checked', String(isSelected));
+        if (isSelected) selectedImageStyles.add(style);
+        else selectedImageStyles.delete(style);
+        debouncedSaveStudioPrefs();
+    }));
     sizePresetChips.forEach(chip => chip.addEventListener('click', handleSizePresetClick));
-    customWidthInput.addEventListener('change', handleCustomDimensionInput);
-    customHeightInput.addEventListener('change', handleCustomDimensionInput);
+    [customWidthInput, customHeightInput].forEach(input => input.addEventListener('change', handleCustomDimensionInput));
     aspectRatioLockToggle.addEventListener('change', handleAspectRatioLockToggle);
     generateImageBtn.addEventListener('click', handleGenerateImageClick);
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
     studioShareBtn.addEventListener('click', () => openShareModal('studio'));
     
-    // -- Social Media Manager --
-    socialTopicInput.addEventListener('input', debouncedSaveSocialPrefs);
-    socialToneSelect.addEventListener('change', debouncedSaveSocialPrefs);
-    businessSelect.addEventListener('change', (e) => {
-        selectedBusinessId = Number((e.target as HTMLSelectElement).value);
+    // Social Media Manager
+    socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
+    socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
+    businessSelect.addEventListener('change', () => {
+        selectedBusinessId = parseInt(businessSelect.value);
         debouncedSaveSocialPrefs();
     });
     manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
     businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
     businessListContainer.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
-        const editBtn = target.closest('.edit-btn');
-        const deleteBtn = target.closest('.delete-btn');
-        if (editBtn) handleEditBusinessClick(Number(editBtn.getAttribute('data-id')));
-        if (deleteBtn) handleDeleteBusinessClick(Number(deleteBtn.getAttribute('data-id')));
+        const editBtn = target.closest('.edit-btn') as HTMLButtonElement;
+        const deleteBtn = target.closest('.delete-btn') as HTMLButtonElement;
+        if (editBtn) handleEditBusinessClick(parseInt(editBtn.dataset.id!));
+        if (deleteBtn) handleDeleteBusinessClick(parseInt(deleteBtn.dataset.id!));
     });
     businessForm.addEventListener('submit', handleBusinessFormSubmit);
     cancelBusinessEditBtn.addEventListener('click', resetBusinessForm);
+    socialTopicInput.addEventListener('input', debouncedSaveSocialPrefs);
+    socialToneSelect.addEventListener('change', debouncedSaveSocialPrefs);
+    brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
+    closeBrainstormBtn.addEventListener('click', closeBrainstormModal);
+    generateBrainstormIdeasBtn.addEventListener('click', handleBrainstormClick);
     selectAllPlatformsBtn.addEventListener('click', () => {
-        if (selectedPlatforms.size === platforms.length) {
-            selectedPlatforms.clear();
-        } else {
+        const shouldSelectAll = selectedPlatforms.size < platforms.length;
+        if (shouldSelectAll) {
             platforms.forEach(p => selectedPlatforms.add(p.key));
+        } else {
+            selectedPlatforms.clear();
         }
         renderSocialPlatforms();
         debouncedSaveSocialPrefs();
     });
-    brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
-    closeBrainstormBtn.addEventListener('click', closeBrainstormModal);
-    generateBrainstormIdeasBtn.addEventListener('click', handleBrainstormClick);
+    generateSocialBtn.addEventListener('click', handleGenerateSocialClick);
     generateRepliesBtn.addEventListener('click', openReplyModal);
     closeReplyModalBtn.addEventListener('click', closeReplyModal);
     generateReplyBtn.addEventListener('click', handleGenerateReplies);
-    generateSocialBtn.addEventListener('click', handleGenerateSocialClick);
-    suggestTimeBtn.addEventListener('click', handleSuggestTimeClick);
-    schedulePostsBtn.addEventListener('click', handleSchedulePostsClick);
-    socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
-    socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
-    refinePostModal.addEventListener('click', (e) => { if (e.target === refinePostModal) closeRefineModal(); });
-    cancelRefineBtn.addEventListener('click', closeRefineModal);
-    refineNowBtn.addEventListener('click', handleRefineNowClick);
     refineActionsContainer.addEventListener('click', (e) => {
         const target = e.target as HTMLElement;
-        if (target.matches('.style-chip')) {
-            refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => {
-                chip.classList.toggle('selected', chip === target);
-                chip.setAttribute('aria-checked', String(chip === target));
-            });
-        }
+        const chip = target.closest('.style-chip') as HTMLButtonElement;
+        if (!chip) return;
+        // Toggle behavior: deselect others when one is selected
+        refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
+        chip.classList.add('selected');
     });
-
-    // Initial load
-    loadTheme();
-    loadUsers();
-    loadCurrentUser();
-    updateAuthUI();
-    handleLoadPrefs();
-    loadStudioPrefs();
-    loadSocialPrefs();
-    initializeSpeechRecognition();
-
-    // Restore last active tab
-    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
-    if (lastTab) {
-        switchAppTab(lastTab);
-    }
+    cancelRefineBtn.addEventListener('click', closeRefineModal);
+    refineNowBtn.addEventListener('click', handleRefinePost);
+    suggestTimeBtn.addEventListener('click', handleSuggestTime);
+    schedulePostsBtn.addEventListener('click', handleSchedulePosts);
 }
 
-// Wait for the DOM to be fully loaded before running the initialization code
+// --- STARTUP ---
 document.addEventListener('DOMContentLoaded', initialize);
