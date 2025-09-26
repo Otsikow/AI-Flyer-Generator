@@ -787,6 +787,28 @@ input[type="password"]:focus {
     width: 16px;
     height: 16px;
 }
+.share-destinations {
+    margin-top: 1.5rem;
+    text-align: center;
+}
+.share-destinations p {
+    font-size: 0.9rem;
+    color: var(--text-secondary-color);
+    margin-bottom: 0.75rem;
+}
+.share-icons {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.share-icons svg {
+    width: 32px;
+    height: 32px;
+    color: var(--text-secondary-color);
+    opacity: 0.7;
+}
+
 
 /* Auth Modal Styles */
 .modal-tabs {
