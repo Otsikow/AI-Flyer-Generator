@@ -127,6 +127,7 @@ let resetFiltersBtn: HTMLButtonElement;
 let aiEditSection: HTMLDivElement;
 let aiEditPromptInput: HTMLTextAreaElement;
 let micAiEditBtn: HTMLButtonElement;
+let generateAiEditPromptBtn: HTMLButtonElement;
 let enhanceAiEditBtn: HTMLButtonElement;
 let applyAiEditBtn: HTMLButtonElement;
 // --
@@ -273,6 +274,7 @@ let activeMic: {
 let isGeneratingImage = false;
 let isEnhancingImagePrompt = false;
 let isApplyingAiEdit = false;
+let isGeneratingAiEditPrompt = false;
 
 // Share Modal State
 let isGeneratingCaption = false;
@@ -534,7 +536,6 @@ function switchAppTab(targetTab: 'design' | 'studio' | 'social') {
         tabImageStudio.classList.add('active');
         imageStudioPage.classList.add('active');
     } else if (targetTab === 'social') {
-        // FIX: The variable 'tabManager' was not defined. It should be 'tabSocialManager'.
         tabSocialManager.classList.add('active');
         socialMediaManagerPage.classList.add('active');
     }
@@ -1774,6 +1775,44 @@ function handleTextPositionUpdate(event: Event) {
     renderTextOnCanvas();
 }
 
+async function handleGenerateAiEditPromptClick() {
+    if (isGeneratingAiEditPrompt || !aiEditPromptInput.value.trim()) return;
+
+    isGeneratingAiEditPrompt = true;
+    generateAiEditPromptBtn.disabled = true;
+    generateAiEditPromptBtn.classList.add('loading');
+    
+    const currentText = aiEditPromptInput.value.trim();
+    const genPrompt = `You are an AI assistant for an image editor. The user wants to perform an edit based on a simple idea. Your task is to expand this idea into a detailed and effective prompt for an AI image editing model. The prompt should be a clear, direct instruction.
+
+Return ONLY the generated prompt, with no introductory text or explanations.
+
+User's Idea: "${currentText}"`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: genPrompt,
+        });
+        
+        const newText = response.text.trim();
+        if (newText) {
+            aiEditPromptInput.value = newText;
+        } else {
+            showError("The AI couldn't generate a prompt from that idea. Please try a different one.", studioErrorMessage);
+        }
+    } catch (error) {
+        parseAndShowError(error, studioErrorMessage);
+    } finally {
+        isGeneratingAiEditPrompt = false;
+        generateAiEditPromptBtn.classList.remove('loading');
+        // Re-enable buttons only if there's still text
+        const hasText = !!aiEditPromptInput.value.trim();
+        generateAiEditPromptBtn.disabled = !hasText;
+        enhanceAiEditBtn.disabled = !hasText;
+    }
+}
+
 async function handleEnhanceAiEditPromptClick() {
     if (isEnhancing || !aiEditPromptInput.value.trim()) return;
 
@@ -2565,7 +2604,7 @@ function renderScheduledPosts() {
                 <p class="post-content">${post.text}</p>
             </div>
             <button class="btn btn-icon delete-schedule-btn" aria-label="Delete scheduled post" title="Delete Post">
-                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
             </button>
         `;
 
@@ -2696,7 +2735,6 @@ function openRefineModal() {
 async function handleRefinePost() {
     if (isRefiningPost || !postToRefine) return;
 
-    // FIX: `querySelector` returns `Element | null`, which lacks a `dataset` property. Cast to `HTMLElement | null` to access `dataset`.
     const selectedAction = refineActionsContainer.querySelector('.style-chip.selected') as HTMLElement | null;
     const instruction = selectedAction?.dataset.instruction || refineCustomInstruction.value.trim();
 
@@ -2846,6 +2884,7 @@ function initialize() {
     aiEditSection = document.getElementById('ai-edit-section') as HTMLDivElement;
     aiEditPromptInput = document.getElementById('ai-edit-prompt-input') as HTMLTextAreaElement;
     micAiEditBtn = document.getElementById('mic-ai-edit-btn') as HTMLButtonElement;
+    generateAiEditPromptBtn = document.getElementById('generate-ai-edit-prompt-btn') as HTMLButtonElement;
     enhanceAiEditBtn = document.getElementById('enhance-ai-edit-btn') as HTMLButtonElement;
     applyAiEditBtn = document.getElementById('apply-ai-edit-btn') as HTMLButtonElement;
     brightnessSlider = document.getElementById('brightness-slider') as HTMLInputElement;
@@ -2946,7 +2985,6 @@ function initialize() {
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
-    // FIX: The variable 'tabManager' was not defined. It should be 'tabSocialManager'.
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
     
     // -- Design Generator --
@@ -3008,7 +3046,12 @@ function initialize() {
         handleTextStyleUpdate();
     }));
     textPositionGrid.forEach(option => option.addEventListener('click', handleTextPositionUpdate));
-    aiEditPromptInput.addEventListener('input', () => enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim());
+    aiEditPromptInput.addEventListener('input', () => {
+        const hasText = !!aiEditPromptInput.value.trim();
+        enhanceAiEditBtn.disabled = !hasText;
+        generateAiEditPromptBtn.disabled = !hasText;
+    });
+    generateAiEditPromptBtn.addEventListener('click', handleGenerateAiEditPromptClick);
     enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
     applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
     imagePromptInput.addEventListener('input', () => {
