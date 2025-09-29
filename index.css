@@ -469,7 +469,7 @@ input[type="password"]:focus {
 
 .logo-size-options-container, .layout-options-container, .text-effects-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
     margin-bottom: 1.5rem;
 }
@@ -655,7 +655,7 @@ input[type="password"]:focus {
 
 .size-options-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
   margin-bottom: 1.5rem;
 }
@@ -1443,54 +1443,31 @@ input[type="color"]::-webkit-color-swatch {
     text-align: left;
     display: flex;
     gap: 1rem;
-    align-items: flex-start;
     position: relative;
-    transition: box-shadow 0.2s;
 }
-.scheduled-post-item:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+.scheduled-post-item .delete-schedule-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-size: 1.2rem;
 }
 .scheduled-post-item .platform-icon {
     flex-shrink: 0;
-    margin-top: 4px;
 }
-.scheduled-post-item .platform-icon svg {
-    width: 24px;
-    height: 24px;
-    color: var(--text-secondary-color);
-}
-.post-details {
-    flex-grow: 1;
-    padding-right: 30px; /* Space for delete button */
-}
-.post-meta {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-.post-meta strong {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--text-color);
-}
-.scheduled-time {
-    font-size: 0.85rem;
-    font-weight: 500;
-    color: var(--text-secondary-color);
-}
-.post-content {
-    font-size: 0.95rem;
-    white-space: pre-wrap;
-    color: var(--text-secondary-color);
-    word-break: break-word;
-}
-.delete-schedule-btn {
-    position: absolute;
-    top: 0.75rem;
-    right: 0.75rem;
+.scheduled-post-item .post-content {
+    font-size: 0.9rem;
+    max-height: 80px;
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 50%, transparent 100%);
+
 }
 
 #business-list-container {
@@ -1616,6 +1593,8 @@ input[type="color"]::-webkit-color-swatch {
   .output-panel {
     /* Ensure output panel doesn't take up excessive vertical space on tablet */
     min-height: 550px;
+    position: sticky; /* Let it stick while scrolling through the long input panel */
+    top: 1.5rem;
   }
 }
 
@@ -1667,9 +1646,6 @@ input[type="color"]::-webkit-color-swatch {
   .form-grid-span-2 {
     grid-column: 1;
   }
-  .control-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 480px) {
@@ -1683,9 +1659,5 @@ input[type="color"]::-webkit-color-swatch {
     }
     .download-controls, .studio-download-controls {
         flex-direction: column;
-    }
-    .post-meta {
-        flex-direction: column;
-        align-items: flex-start;
     }
 }
