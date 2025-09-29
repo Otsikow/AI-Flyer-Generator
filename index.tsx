@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 // Since cropperjs is loaded from a CDN, we declare its type here to satisfy TypeScript
@@ -115,14 +116,11 @@ let studioTabEdit: HTMLButtonElement;
 let studioTabGenerate: HTMLButtonElement;
 let studioEditPanel: HTMLDivElement;
 let studioGeneratePanel: HTMLDivElement;
+let studioImageUploadContainer: HTMLDivElement;
 let studioImageUploadArea: HTMLDivElement;
 let studioLogoUpload: HTMLInputElement;
 let studioUploadPlaceholder: HTMLDivElement;
-let uploadedImagesContainer: HTMLDivElement;
-let uploadedImagesList: HTMLDivElement;
-let mergeControls: HTMLDivElement;
-let mergePromptInput: HTMLTextAreaElement;
-let mergeImagesBtn: HTMLButtonElement;
+let studioEditControls: HTMLDivElement;
 let adjustmentControls: HTMLDivElement;
 let resetFiltersBtn: HTMLButtonElement;
 // -- AI Edit elements --
@@ -152,7 +150,6 @@ let sizePresetChips: NodeListOf<HTMLButtonElement>;
 let customWidthInput: HTMLInputElement;
 let customHeightInput: HTMLInputElement;
 let aspectRatioLockToggle: HTMLInputElement;
-let sizePreviewBox: HTMLDivElement;
 let generateImageBtn: HTMLButtonElement;
 let studioOutputPlaceholder: HTMLDivElement;
 let studioLoader: HTMLDivElement;
@@ -242,9 +239,6 @@ let selectedLogoRotation = 0;
 let selectedLogoOpacity = 100;
 
 // Image Studio State
-let uploadedStudioImages: { id: number; src: string }[] = [];
-let selectedStudioImageId: number | null = null;
-let nextImageId = 0;
 let studioImageHistory: string[] = [];
 let studioHistoryIndex = -1;
 let studioCurrentImageSrc: string | null = null;
@@ -279,7 +273,6 @@ let activeMic: {
 let isGeneratingImage = false;
 let isEnhancingImagePrompt = false;
 let isApplyingAiEdit = false;
-let isMerging = false;
 
 // Share Modal State
 let isGeneratingCaption = false;
@@ -532,17 +525,18 @@ function switchAppTab(targetTab: 'design' | 'studio' | 'social') {
     const pages = [designGeneratorPage, imageStudioPage, socialMediaManagerPage];
     
     tabs.forEach(tab => tab.classList.remove('active'));
-    pages.forEach(page => page.classList.add('hidden'));
+    pages.forEach(page => page.classList.remove('active'));
 
     if (targetTab === 'design') {
         tabDesignGenerator.classList.add('active');
-        designGeneratorPage.classList.remove('hidden');
+        designGeneratorPage.classList.add('active');
     } else if (targetTab === 'studio') {
         tabImageStudio.classList.add('active');
-        imageStudioPage.classList.remove('hidden');
+        imageStudioPage.classList.add('active');
     } else if (targetTab === 'social') {
+        // FIX: The variable 'tabManager' was not defined. It should be 'tabSocialManager'.
         tabSocialManager.classList.add('active');
-        socialMediaManagerPage.classList.remove('hidden');
+        socialMediaManagerPage.classList.add('active');
     }
 
     localStorage.setItem(LAST_TAB_KEY, targetTab);
@@ -552,9 +546,9 @@ function switchAppTab(targetTab: 'design' | 'studio' | 'social') {
 
 function setAutoSaveStatus(status: 'idle' | 'saving' | 'saved') {
     const activeIndicators: HTMLDivElement[] = [];
-    if (!designGeneratorPage.classList.contains('hidden')) activeIndicators.push(designSaveIndicator);
-    if (!imageStudioPage.classList.contains('hidden')) activeIndicators.push(studioSaveIndicator);
-    if (!socialMediaManagerPage.classList.contains('hidden')) activeIndicators.push(socialSaveIndicator);
+    if (designGeneratorPage.classList.contains('active')) activeIndicators.push(designSaveIndicator);
+    if (imageStudioPage.classList.contains('active')) activeIndicators.push(studioSaveIndicator);
+    if (socialMediaManagerPage.classList.contains('active')) activeIndicators.push(socialSaveIndicator);
 
     if (autoSaveTimeout) clearTimeout(autoSaveTimeout);
     autoSaveStatus = status;
@@ -1558,15 +1552,6 @@ function renderCurrentImageFromHistory() {
     const imageDataUrl = studioImageHistory[studioHistoryIndex];
     studioCurrentImageSrc = imageDataUrl;
     studioImageOutput.src = imageDataUrl;
-
-    // Update the image source in the main state array as well
-    if (selectedStudioImageId !== null) {
-        const imageIndex = uploadedStudioImages.findIndex(img => img.id === selectedStudioImageId);
-        if (imageIndex > -1) {
-            uploadedStudioImages[imageIndex].src = imageDataUrl;
-            renderUploadedImageThumbnails(); // Re-render to show updated thumb if needed
-        }
-    }
     
     // Reset manual adjustments when history changes
     resetAllImageFilters();
@@ -1614,49 +1599,21 @@ function handleStudioTabSwitch(targetTab: 'edit' | 'generate') {
         studioTabGenerate.classList.remove('active');
         studioEditPanel.classList.add('active');
         studioGeneratePanel.classList.remove('active');
+
+        // Check if an image is active to decide what to show in edit panel
+        if (studioCurrentImageSrc) {
+            studioEditControls.classList.remove('hidden');
+            studioImageUploadContainer.classList.add('hidden');
+        } else {
+            studioEditControls.classList.add('hidden');
+            studioImageUploadContainer.classList.remove('hidden');
+        }
     } else {
         studioTabEdit.classList.remove('active');
         studioTabGenerate.classList.add('active');
         studioEditPanel.classList.remove('active');
         studioGeneratePanel.classList.add('active');
     }
-}
-
-function renderUploadedImageThumbnails() {
-    uploadedImagesList.innerHTML = ''; // Clear existing thumbnails
-    if (uploadedStudioImages.length > 0) {
-        uploadedImagesContainer.classList.remove('hidden');
-    } else {
-        uploadedImagesContainer.classList.add('hidden');
-    }
-
-    // Show merge controls if there are 2 or more images
-    mergeControls.classList.toggle('hidden', uploadedStudioImages.length < 2);
-
-    uploadedStudioImages.forEach(image => {
-        const thumbItem = document.createElement('div');
-        thumbItem.className = 'thumbnail-item';
-
-        const img = document.createElement('img');
-        img.src = image.src;
-        img.dataset.id = String(image.id);
-        img.alt = `Uploaded image ${image.id}`;
-        img.classList.toggle('selected', image.id === selectedStudioImageId);
-        img.addEventListener('click', () => handleThumbnailClick(image.id));
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'remove-thumb-btn';
-        removeBtn.innerHTML = '&times;';
-        removeBtn.ariaLabel = `Remove image ${image.id}`;
-        removeBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            handleRemoveThumbnail(image.id);
-        });
-
-        thumbItem.appendChild(img);
-        thumbItem.appendChild(removeBtn);
-        uploadedImagesList.appendChild(thumbItem);
-    });
 }
 
 function setActiveStudioImage(src: string | null) {
@@ -1669,8 +1626,10 @@ function setActiveStudioImage(src: string | null) {
         studioResultContainer.classList.remove('hidden');
         studioOutputPlaceholder.classList.add('hidden');
         studioDownloadControls.classList.remove('hidden');
-        adjustmentControls.classList.remove('hidden');
-        aiEditSection.classList.remove('hidden');
+        
+        // Show edit controls, hide upload prompt
+        studioEditControls.classList.remove('hidden');
+        studioImageUploadContainer.classList.add('hidden');
 
         renderCurrentImageFromHistory();
     } else {
@@ -1679,66 +1638,29 @@ function setActiveStudioImage(src: string | null) {
         studioResultContainer.classList.add('hidden');
         studioOutputPlaceholder.classList.remove('hidden');
         studioDownloadControls.classList.add('hidden');
-        adjustmentControls.classList.add('hidden');
-        aiEditSection.classList.add('hidden');
+
+        // Hide edit controls, show upload prompt
+        studioEditControls.classList.add('hidden');
+        studioImageUploadContainer.classList.remove('hidden');
     }
-}
-
-function handleThumbnailClick(id: number) {
-    if (id === selectedStudioImageId) return; // Already selected
-
-    selectedStudioImageId = id;
-    const selectedImage = uploadedStudioImages.find(img => img.id === id);
-    if (selectedImage) {
-        setActiveStudioImage(selectedImage.src);
-    }
-    renderUploadedImageThumbnails(); // Re-render to update selection style
-}
-
-function handleRemoveThumbnail(idToRemove: number) {
-    uploadedStudioImages = uploadedStudioImages.filter(img => img.id !== idToRemove);
-
-    if (selectedStudioImageId === idToRemove) {
-        // If the removed image was the selected one, select the first one remaining
-        if (uploadedStudioImages.length > 0) {
-            selectedStudioImageId = uploadedStudioImages[0].id;
-            setActiveStudioImage(uploadedStudioImages[0].src);
-        } else {
-            selectedStudioImageId = null;
-            setActiveStudioImage(null);
-        }
-    }
-    
-    renderUploadedImageThumbnails();
 }
 
 function handleStudioImageUpload(files: FileList | null) {
     if (files && files.length > 0) {
-        const validFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-        if (validFiles.length === 0) {
-             showError('Please select valid image files (JPG, PNG, WEBP).', studioErrorMessage);
+        const file = files[0];
+        if (!file.type.startsWith('image/')) {
+             showError('Please select a valid image file (JPG, PNG, WEBP).', studioErrorMessage);
              return;
         }
 
-        let firstImageAdded = false;
-
-        validFiles.forEach(file => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                const imageDataUrl = e.target?.result as string;
-                const newImage = { id: nextImageId++, src: imageDataUrl };
-                uploadedStudioImages.push(newImage);
-
-                // If no image is currently selected, select the first one we upload
-                if (!firstImageAdded) {
-                    selectedStudioImageId = newImage.id;
-                    setActiveStudioImage(newImage.src);
-                    firstImageAdded = true;
-                }
-                renderUploadedImageThumbnails();
-            };
-            reader.readAsDataURL(file);
-        });
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const imageDataUrl = e.target?.result as string;
+            setActiveStudioImage(imageDataUrl);
+            // Switch to edit tab automatically after upload
+            handleStudioTabSwitch('edit');
+        };
+        reader.readAsDataURL(file);
     }
 }
 
@@ -1939,78 +1861,6 @@ async function handleApplyAiEditClick() {
     }
 }
 
-async function handleMergeImagesClick() {
-    if (isMerging || uploadedStudioImages.length < 2) return;
-
-    const prompt = mergePromptInput.value.trim();
-    if (!prompt) {
-        showError("Please describe how you want to merge the images.", studioErrorMessage);
-        return;
-    }
-
-    isMerging = true;
-    mergeImagesBtn.disabled = true;
-    mergeImagesBtn.classList.add('loading');
-    studioLoader.classList.remove('hidden');
-    studioLoaderText.textContent = 'Merging images with AI...';
-    studioResultContainer.classList.add('hidden');
-    studioErrorMessage.classList.add('hidden');
-
-    try {
-        const parts: ({ text: string } | { inlineData: { data: string, mimeType: string } })[] = [];
-        parts.push({ text: prompt });
-
-        for (const image of uploadedStudioImages) {
-            const base64ImageData = image.src.split(',')[1];
-            const mimeType = image.src.substring(image.src.indexOf(':') + 1, image.src.indexOf(';'));
-            parts.push({ inlineData: { data: base64ImageData, mimeType: mimeType } });
-        }
-        
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
-            contents: { parts },
-            config: { responseModalities: [Modality.IMAGE, Modality.TEXT] },
-        });
-
-        let foundImage = false;
-        if (response.candidates && response.candidates.length > 0) {
-            for (const part of response.candidates[0].content.parts) {
-                if (part.inlineData) {
-                    const newBase64 = part.inlineData.data;
-                    const newMimeType = part.inlineData.mimeType;
-                    const newImageUrl = `data:${newMimeType};base64,${newBase64}`;
-                    
-                    // Replace all uploaded images with the new merged one
-                    const mergedImage = { id: nextImageId++, src: newImageUrl };
-                    uploadedStudioImages = [mergedImage];
-                    selectedStudioImageId = mergedImage.id;
-
-                    setActiveStudioImage(mergedImage.src);
-                    renderUploadedImageThumbnails();
-
-                    foundImage = true;
-                    break;
-                }
-            }
-        }
-        
-        if (!foundImage) {
-            showError("The AI couldn't merge the images. Please try a different prompt.", studioErrorMessage);
-        }
-
-    } catch (error) {
-        parseAndShowError(error, studioErrorMessage);
-    } finally {
-        isMerging = false;
-        mergeImagesBtn.disabled = false;
-        mergeImagesBtn.classList.remove('loading');
-        studioLoader.classList.add('hidden');
-        if (studioCurrentImageSrc) {
-            studioResultContainer.classList.remove('hidden');
-        }
-    }
-}
-
 async function handleEnhanceImagePromptClick() {
     if (isEnhancingImagePrompt || !imagePromptInput.value.trim()) return;
 
@@ -2048,11 +1898,6 @@ function updateImageSizeUI() {
     const { width, height } = imageGenerationSize;
     customWidthInput.value = String(width);
     customHeightInput.value = String(height);
-
-    // Update preview box aspect ratio
-    if (height > 0) {
-        sizePreviewBox.style.aspectRatio = `${width} / ${height}`;
-    }
 
     // Check if current custom dimensions match a preset and select it
     let matchedPreset = false;
@@ -2189,12 +2034,7 @@ async function handleGenerateImageClick() {
             const base64ImageBytes = response.generatedImages[0].image.imageBytes;
             const newImageDataUrl = `data:image/png;base64,${base64ImageBytes}`;
             
-            // Add the new image to the uploaded list and select it
-            const newImage = { id: nextImageId++, src: newImageDataUrl };
-            uploadedStudioImages.push(newImage);
-            selectedStudioImageId = newImage.id;
-            setActiveStudioImage(newImage.src);
-            renderUploadedImageThumbnails();
+            setActiveStudioImage(newImageDataUrl);
             
             // Switch to the edit tab to show the new image and controls
             handleStudioTabSwitch('edit');
@@ -2341,49 +2181,6 @@ function handleSocialTabSwitch(targetTab: 'create' | 'scheduled') {
     }
 }
 
-function renderScheduledPosts() {
-    if (!scheduledPostsContainer) return;
-    scheduledPostsContainer.innerHTML = '';
-    if (scheduledPosts.length === 0) {
-        scheduledPostsContainer.innerHTML = `<p class="text-gray-500 dark:text-gray-400 text-center py-8">You have no posts scheduled.</p>`;
-        return;
-    }
-
-    // Sort posts by date (most recent first)
-    const sortedPosts = [...scheduledPosts].sort((a, b) => b.scheduleTime.getTime() - a.scheduleTime.getTime());
-
-    sortedPosts.forEach((post) => {
-        const postEl = document.createElement('div');
-        postEl.className = 'scheduled-post-item bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-4 transition-all hover:shadow-md';
-        
-        const platformInfo = platforms.find(p => p.key === post.platform);
-
-        postEl.innerHTML = `
-            <div class="flex items-start gap-4">
-                <div class="platform-icon text-gray-500 dark:text-gray-400 mt-1">${platformInfo?.icon || ''}</div>
-                <div class="flex-1">
-                    <div class="flex justify-between items-center">
-                        <p class="font-bold text-lg text-gray-800 dark:text-gray-200">${platformInfo?.name || post.platform}</p>
-                        <button class="btn btn-secondary btn-sm delete-schedule-btn" aria-label="Delete scheduled post">&times;</button>
-                    </div>
-                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-2">Scheduled for: ${post.scheduleTime.toLocaleString()}</p>
-                    <p class="post-content text-gray-700 dark:text-gray-300 whitespace-pre-wrap">${post.text}</p>
-                </div>
-            </div>
-        `;
-
-        const deleteBtn = postEl.querySelector('.delete-schedule-btn');
-        deleteBtn?.addEventListener('click', () => {
-            // Filter out the post to delete by object reference
-            scheduledPosts = scheduledPosts.filter(p => p !== post);
-            debouncedSaveSocialPrefs();
-            renderScheduledPosts(); // Re-render the list
-        });
-        
-        scheduledPostsContainer.appendChild(postEl);
-    });
-}
-
 function renderSocialPlatforms() {
     if (!socialPlatformsContainer) return;
     socialPlatformsContainer.innerHTML = '';
@@ -2391,11 +2188,7 @@ function renderSocialPlatforms() {
         const platformEl = document.createElement('div');
         const isSelected = selectedPlatforms.has(platform.key);
         
-        platformEl.className = `platform-chip flex items-center gap-2 px-4 py-2 rounded-full border-2 cursor-pointer transition-all ${
-            isSelected 
-                ? 'bg-blue-600 border-blue-600 text-white' 
-                : 'bg-transparent border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'
-        }`;
+        platformEl.className = `platform-chip ${isSelected ? 'selected' : ''}`;
         platformEl.dataset.platform = platform.key;
         platformEl.setAttribute('role', 'checkbox');
         platformEl.setAttribute('aria-checked', String(isSelected));
@@ -2463,6 +2256,14 @@ function renderBusinessManagerList() {
         `;
         businessListContainer.appendChild(item);
     });
+
+    // Add event listeners after rendering
+    businessListContainer.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => handleEditBusinessClick(parseInt((e.currentTarget as HTMLElement).dataset.id!)));
+    });
+    businessListContainer.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => handleDeleteBusinessClick(parseInt((e.currentTarget as HTMLElement).dataset.id!)));
+    });
 }
 
 function resetBusinessForm() {
@@ -2511,307 +2312,104 @@ function handleBusinessFormSubmit(event: Event) {
         }
     };
 
-    if (id) {
-        businesses = businesses.map(b => b.id === id ? { ...b, ...businessData } : b);
-    } else {
-        const newBusiness = { ...businessData, id: Date.now() };
-        businesses.push(newBusiness);
-        selectedBusinessId = newBusiness.id;
+    if (id) { // Editing existing
+        const index = businesses.findIndex(b => b.id === id);
+        if (index > -1) {
+            businesses[index] = { ...businesses[index], ...businessData };
+        }
+    } else { // Adding new
+        const newId = businesses.length > 0 ? Math.max(...businesses.map(b => b.id)) + 1 : 1;
+        businesses.push({ id: newId, ...businessData });
+        selectedBusinessId = newId;
     }
+
     debouncedSaveSocialPrefs();
     renderBusinessSelect();
     renderBusinessManagerList();
     resetBusinessForm();
 }
 
-// --- Social Content Generation ---
+function handleSelectAllPlatforms() {
+    const allPlatformKeys = platforms.map(p => p.key);
+    // If all are already selected, deselect all. Otherwise, select all.
+    const allSelected = allPlatformKeys.every(key => selectedPlatforms.has(key));
 
-function openBrainstormModal() {
-    brainstormResultsContainer.innerHTML = ''; // Clear previous results
-    brainstormModal.classList.remove('hidden');
-}
-function closeBrainstormModal() {
-    brainstormModal.classList.add('hidden');
-}
-
-async function handleBrainstormClick() {
-    if (isBrainstorming) return;
-    isBrainstorming = true;
-    
-    const generateBtnOriginalText = generateBrainstormIdeasBtn.innerHTML;
-    generateBrainstormIdeasBtn.innerHTML = `<div class="loading-spinner" style="width:20px;height:20px;border-width:2px;"></div>`;
-    generateBrainstormIdeasBtn.disabled = true;
-    
-    try {
-        const business = businesses.find(b => b.id === selectedBusinessId);
-        const prompt = `Brainstorm 5 engaging social media post ideas for a business named "${business?.name}". The ideas should be creative and tailored to a general audience. Format the output as a numbered list.`;
-        
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-        const ideasText = response.text.trim();
-        
-        brainstormResultsContainer.innerHTML = ''; // Clear before adding new ideas
-        ideasText.split(/\d+\.\s/g).filter(idea => idea.trim()).forEach(idea => {
-            const ideaEl = document.createElement('div');
-            ideaEl.className = 'brainstorm-idea';
-            ideaEl.textContent = idea.trim();
-            ideaEl.onclick = () => {
-                socialTopicInput.value = idea.trim();
-                debouncedSaveSocialPrefs();
-                closeBrainstormModal();
-            };
-            brainstormResultsContainer.appendChild(ideaEl);
-        });
-
-    } catch(error) {
-        parseAndShowError(error, socialErrorMessage);
-    } finally {
-        isBrainstorming = false;
-        generateBrainstormIdeasBtn.innerHTML = generateBtnOriginalText;
-        generateBrainstormIdeasBtn.disabled = false;
+    if (allSelected) {
+        selectedPlatforms.clear();
+    } else {
+        allPlatformKeys.forEach(key => selectedPlatforms.add(key));
     }
+    renderSocialPlatforms();
+    debouncedSaveSocialPrefs();
 }
 
-function openReplyModal() {
-    replyGeneratorModal.classList.remove('hidden');
-    replyResultsContainer.innerHTML = '';
-    replyOriginalText.value = '';
-}
-function closeReplyModal() {
-    replyGeneratorModal.classList.add('hidden');
-}
-
-async function handleGenerateReplies() {
-    if (isGeneratingReplies || !replyOriginalText.value.trim()) return;
-
-    isGeneratingReplies = true;
-    const generateBtnOriginalText = generateReplyBtn.innerHTML;
-    generateReplyBtn.innerHTML = `<div class="loading-spinner" style="width:20px;height:20px;border-width:2px;"></div>`;
-    generateReplyBtn.disabled = true;
-
-    try {
-        const tone = replyToneSelect.value;
-        const originalPost = replyOriginalText.value;
-        const prompt = `Generate 3 distinct and helpful replies to the following social media comment/post. The replies should be in a ${tone} tone. Return only the replies, each on a new line, without any numbering or introductory text.\n\nOriginal Comment: "${originalPost}"`;
-        
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-        const repliesText = response.text.trim();
-
-        replyResultsContainer.innerHTML = ''; // Clear previous
-        // Split by newline since we requested each on a new line.
-        repliesText.split('\n').filter(reply => reply.trim()).forEach(reply => {
-            const replyEl = document.createElement('div');
-            replyEl.className = 'generated-reply';
-            replyEl.textContent = reply.trim();
-            replyEl.onclick = () => {
-                navigator.clipboard.writeText(reply.trim());
-                const originalText = reply.trim();
-                replyEl.textContent = "Copied!";
-                setTimeout(() => { replyEl.textContent = originalText; }, 1000);
-            };
-            replyResultsContainer.appendChild(replyEl);
-        });
-
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-    } finally {
-        isGeneratingReplies = false;
-        generateReplyBtn.innerHTML = generateBtnOriginalText;
-        generateReplyBtn.disabled = false;
-    }
-}
-
-function renderGeneratedSocialPosts() {
-    socialResultsContainer.innerHTML = '';
-    if (generatedSocialContent.length === 0) {
-        socialOutputPlaceholder.classList.remove('hidden');
-        socialScheduleControls.classList.add('hidden');
-        return;
-    }
-    
-    socialOutputPlaceholder.classList.add('hidden');
-    socialScheduleControls.classList.remove('hidden');
-
-    generatedSocialContent.forEach(post => {
-        const platformInfo = platforms.find(p => p.key === post.platform);
-        const card = document.createElement('div');
-        card.className = 'social-post-card';
-
-        let imageHtml = '';
-        if (post.imageUrl) {
-            imageHtml = `<img src="${post.imageUrl}" alt="Generated image for post" class="social-post-image">`;
-        }
-
-        card.innerHTML = `
-            <div class="social-post-header">
-                ${platformInfo?.icon || ''}
-                <h4>${platformInfo?.name || post.platform}</h4>
-            </div>
-            <div class="social-post-content">
-                <p>${post.text.replace(/\n/g, '<br>')}</p>
-                ${imageHtml}
-            </div>
-            <div class="social-post-actions">
-                <button class="btn btn-secondary refine-post-btn">Refine</button>
-                <button class="btn btn-secondary copy-post-btn">Copy Text</button>
-            </div>
-        `;
-
-        const refineBtn = card.querySelector('.refine-post-btn');
-        refineBtn?.addEventListener('click', () => openRefineModal(post));
-
-        const copyBtn = card.querySelector('.copy-post-btn');
-        copyBtn?.addEventListener('click', () => {
-            navigator.clipboard.writeText(post.text);
-            const button = copyBtn as HTMLButtonElement;
-            const originalText = button.textContent;
-            button.textContent = 'Copied!';
-            setTimeout(() => { button.textContent = originalText; }, 1500);
-        });
-
-        socialResultsContainer.appendChild(card);
-    });
-}
-
-
-function openRefineModal(post: { platform: string; text: string; }) {
-    postToRefine = post;
-    refineOriginalText.textContent = post.text;
-    refineCustomInstruction.value = '';
-    // Deselect any previously selected chip
-    refineActionsContainer.querySelectorAll('.style-chip.selected').forEach(chip => chip.classList.remove('selected'));
-    refinePostModal.classList.remove('hidden');
-}
-
-function closeRefineModal() {
-    refinePostModal.classList.add('hidden');
-    postToRefine = null;
-}
-
-async function handleRefinePost() {
-    if (isRefiningPost || !postToRefine) return;
-
-    const selectedChip = refineActionsContainer.querySelector('.style-chip.selected') as HTMLButtonElement;
-    const customInstruction = refineCustomInstruction.value.trim();
-    const instruction = selectedChip?.dataset.instruction || customInstruction;
-
-    if (!instruction) {
-        showError("Please select a refinement action or provide a custom instruction.", socialErrorMessage);
-        return;
-    }
-
-    isRefiningPost = true;
-    refineNowBtn.disabled = true;
-    refineNowBtn.classList.add('loading');
-
-    try {
-        const prompt = `Refine the following social media post based on this instruction: "${instruction}". Return only the refined post text, with no introductory phrases.\n\nOriginal Post:\n"${postToRefine.text}"`;
-        
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-        const refinedText = response.text.trim();
-
-        if (refinedText) {
-            // Find the post in the main array and update it
-            const postIndex = generatedSocialContent.findIndex(p => p === postToRefine);
-            if (postIndex > -1) {
-                generatedSocialContent[postIndex].text = refinedText;
-                renderGeneratedSocialPosts();
-            }
-        }
-        closeRefineModal();
-
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-    } finally {
-        isRefiningPost = false;
-        refineNowBtn.disabled = false;
-        refineNowBtn.classList.remove('loading');
-    }
-}
-
-
-async function handleGenerateSocialClick() {
+async function handleGenerateSocialBtn() {
     if (isGeneratingSocial) return;
-    
+
     const topic = socialTopicInput.value.trim();
     if (!topic) {
-        showError("Please enter a topic for your social media posts.", socialErrorMessage);
+        showError('Please enter a topic for your social media posts.', socialErrorMessage);
         return;
     }
     if (selectedPlatforms.size === 0) {
-        showError("Please select at least one social media platform.", socialErrorMessage);
+        showError('Please select at least one social media platform.', socialErrorMessage);
         return;
     }
 
     isGeneratingSocial = true;
     generateSocialBtn.disabled = true;
     generateSocialBtn.classList.add('loading');
-    socialLoader.classList.remove('hidden');
-    socialResultsContainer.innerHTML = '';
-    socialOutputPlaceholder.classList.add('hidden');
     socialErrorMessage.classList.add('hidden');
+    socialOutputPlaceholder.classList.add('hidden');
+    socialResultsContainer.innerHTML = '';
+    socialLoader.classList.remove('hidden');
 
     try {
-        const business = businesses.find(b => b.id === selectedBusinessId);
+        const selectedBusiness = businesses.find(b => b.id === selectedBusinessId);
+        let businessContext = `The business is named "${selectedBusiness?.name || 'My Business'}".`;
+        if (selectedBusiness && Object.values(selectedBusiness.socials).some(s => s)) {
+            businessContext += ` Business URLs: ${Object.entries(selectedBusiness.socials).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(', ')}.`;
+        }
+
         const platformList = Array.from(selectedPlatforms).join(', ');
 
         const prompt = `
-            You are a social media manager for a business named "${business?.name}".
-            Your task is to generate engaging social media posts about the following topic: "${topic}".
-            The tone of voice should be: ${socialTone}.
-            Generate one post for each of these platforms: ${platformList}.
-            Tailor the content length, style, and hashtags for each specific platform. 
-            For platforms like Instagram and Facebook, suggest a relevant image by providing a descriptive image prompt.
-        `;
+            You are a social media content creation expert. Your task is to generate engaging posts for multiple platforms based on a user's topic and desired tone.
 
-        const responseSchema = {
-            type: Type.ARRAY,
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    platform: { type: Type.STRING, description: 'The social media platform (e.g., "linkedin", "twitter").' },
-                    text: { type: Type.STRING, description: 'The full text content for the post, including hashtags.' },
-                    image_prompt: { type: Type.STRING, description: 'A descriptive prompt for an AI to generate a relevant image for this post. Only for visual platforms like Instagram.' }
-                }
-            }
-        };
+            **Business Context:** ${businessContext}
+            **Topic:** "${topic}"
+            **Tone:** ${socialTone}
+            **Platforms to Generate For:** ${platformList}
+
+            For each platform, create a tailored post that adheres to its best practices (e.g., character limits, hashtag usage, style).
+            Return a JSON array where each object has "platform" (matching one of the keys: ${platforms.map(p => p.key).join(', ')}) and "text" (the generated content).
+        `;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
-                responseMimeType: 'application/json',
-                responseSchema: responseSchema
-            }
-        });
-        
-        const jsonText = response.text.trim();
-        generatedSocialContent = JSON.parse(jsonText);
-        
-        // Let's also generate images where an image prompt was provided
-        const imageGenerationPromises = generatedSocialContent.map(async (post) => {
-            if (post.image_prompt) {
-                try {
-                     const imageResponse = await ai.models.generateImages({
-                        model: 'imagen-4.0-generate-001',
-                        prompt: post.image_prompt,
-                        config: { numberOfImages: 1, outputMimeType: 'image/png', aspectRatio: '1:1' },
-                    });
-                    if (imageResponse.generatedImages && imageResponse.generatedImages.length > 0) {
-                        post.imageUrl = `data:image/png;base64,${imageResponse.generatedImages[0].image.imageBytes}`;
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            platform: { type: Type.STRING },
+                            text: { type: Type.STRING },
+                        }
                     }
-                } catch(e) {
-                    console.error(`Failed to generate image for ${post.platform}:`, e);
-                    // Continue without image if generation fails
                 }
-            }
-            return post;
+            },
         });
 
-        generatedSocialContent = await Promise.all(imageGenerationPromises);
-        renderGeneratedSocialPosts();
-
+        const jsonStr = response.text.trim();
+        generatedSocialContent = JSON.parse(jsonStr);
+        renderGeneratedPosts();
+        
     } catch (error) {
         parseAndShowError(error, socialErrorMessage);
+        socialOutputPlaceholder.classList.remove('hidden');
     } finally {
         isGeneratingSocial = false;
         generateSocialBtn.disabled = false;
@@ -2820,229 +2418,332 @@ async function handleGenerateSocialClick() {
     }
 }
 
-
-async function handleSuggestTime() {
-    if (isSuggestingTime) return;
-    isSuggestingTime = true;
-    suggestTimeBtn.classList.add('loading');
-    suggestTimeBtn.disabled = true;
-
-    try {
-        const prompt = "Based on general social media engagement data, what is a good time to post tomorrow? Provide the answer as a date and time in YYYY-MM-DDTHH:MM format, assuming today is " + new Date().toISOString().split('T')[0] + ". Only return the datetime string.";
-        const response = await ai.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
-        const suggestedTime = response.text.trim();
-        
-        // Basic validation
-        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(suggestedTime)) {
-            scheduleDateInput.value = suggestedTime;
-        } else {
-            // Fallback if parsing fails
-            const tomorrow = new Date();
-            tomorrow.setDate(tomorrow.getDate() + 1);
-            tomorrow.setHours(10, 0, 0, 0); // Default to 10 AM tomorrow
-            scheduleDateInput.value = tomorrow.toISOString().slice(0, 16);
-        }
-
-    } catch(error) {
-        parseAndShowError(error, socialErrorMessage);
-    } finally {
-        isSuggestingTime = false;
-        suggestTimeBtn.classList.remove('loading');
-        suggestTimeBtn.disabled = false;
-    }
-}
-
-function handleSchedulePosts() {
-    const scheduleTimeStr = scheduleDateInput.value;
-    if (!scheduleTimeStr) {
-        showError("Please select a date and time to schedule.", socialErrorMessage);
-        return;
-    }
-    const scheduleTime = new Date(scheduleTimeStr);
-    if (isNaN(scheduleTime.getTime())) {
-        showError("Invalid date format.", socialErrorMessage);
+function renderGeneratedPosts() {
+    socialResultsContainer.innerHTML = '';
+    if (generatedSocialContent.length === 0) {
+        socialScheduleControls.classList.add('hidden');
         return;
     }
 
     generatedSocialContent.forEach(post => {
-        scheduledPosts.push({ ...post, scheduleTime });
+        const platformInfo = platforms.find(p => p.key === post.platform);
+        if (!platformInfo) return;
+
+        const card = document.createElement('div');
+        card.className = 'social-post-card';
+        card.innerHTML = `
+            <div class="social-post-header">
+                ${platformInfo.icon}
+                <h4>${platformInfo.name}</h4>
+            </div>
+            <div class="social-post-content">
+                <p>${post.text}</p>
+            </div>
+            <div class="social-post-actions">
+                <button class="btn btn-secondary btn-sm refine-post-btn">Refine</button>
+                <button class="btn btn-secondary btn-sm copy-post-btn">Copy</button>
+            </div>
+        `;
+        
+        card.querySelector('.refine-post-btn')?.addEventListener('click', () => {
+            postToRefine = post;
+            openRefineModal();
+        });
+
+        card.querySelector('.copy-post-btn')?.addEventListener('click', (e) => {
+            navigator.clipboard.writeText(post.text);
+            const btn = e.currentTarget as HTMLButtonElement;
+            const originalText = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => { btn.textContent = originalText; }, 1500);
+        });
+
+        socialResultsContainer.appendChild(card);
     });
 
-    generatedSocialContent = [];
-    renderGeneratedSocialPosts();
-    renderScheduledPosts();
+    socialScheduleControls.classList.remove('hidden');
+}
+
+function handleSchedulePosts() {
+    const scheduleTime = scheduleDateInput.value;
+    if (!scheduleTime) {
+        showError('Please select a date and time to schedule.', socialErrorMessage);
+        return;
+    }
+    if (generatedSocialContent.length === 0) {
+        showError('No posts to schedule. Please generate posts first.', socialErrorMessage);
+        return;
+    }
+
+    const newScheduledPosts = generatedSocialContent.map(post => ({
+        ...post,
+        scheduleTime: new Date(scheduleTime),
+        id: Date.now() + Math.random() // simple unique id
+    }));
+
+    scheduledPosts.push(...newScheduledPosts);
     debouncedSaveSocialPrefs();
+    renderScheduledPosts();
+    
+    // Switch to scheduled tab to show the result
     handleSocialTabSwitch('scheduled');
+    
+    // Clear generated content
+    generatedSocialContent = [];
+    socialResultsContainer.innerHTML = '';
+    socialScheduleControls.classList.add('hidden');
+    socialOutputPlaceholder.classList.remove('hidden');
 }
 
-// --- MICROPHONE / SPEECH RECOGNITION ---
-function initializeSpeechRecognition() {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-        console.warn("Speech recognition not supported in this browser.");
-        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => btn.style.display = 'none');
+async function handleSuggestTime() {
+    if (isSuggestingTime) return;
+
+    const platformList = Array.from(selectedPlatforms).join(', ');
+    if (!platformList) {
+        showError("Please select at least one platform to get a time suggestion.", socialErrorMessage);
         return;
     }
 
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-    recognition.maxAlternatives = 1;
+    isSuggestingTime = true;
+    suggestTimeBtn.disabled = true;
+    suggestTimeBtn.classList.add('loading');
 
-    recognition.onresult = (event: any) => {
-        if (activeMic) {
-            const transcript = event.results[0][0].transcript;
-            activeMic.input.value += (activeMic.input.value ? ' ' : '') + transcript;
-            activeMic.input.dispatchEvent(new Event('input', { bubbles: true })); // Trigger input event for auto-save
-        }
-    };
-
-    recognition.onspeechend = () => {
-        stopListening();
-    };
-
-    recognition.onerror = (event: any) => {
-        console.error("Speech recognition error", event.error);
-        stopListening();
-    };
+    const prompt = `Based on general best practices for social media engagement, suggest an optimal day and time to post for the following platforms: ${platformList}. Provide the single best upcoming time in ISO 8601 format (YYYY-MM-DDTHH:MM) based on the current date. For example, if it's Monday morning, you might suggest Tuesday afternoon.`;
     
-    recognition.onend = () => {
-        if (isListening) {
-            stopListening();
-        }
-    };
-}
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
 
-function startListening(input: HTMLTextAreaElement, button: HTMLButtonElement) {
-    if (isListening || !recognition) return;
-    
-    isListening = true;
-    activeMic = { input, button };
-    button.classList.add('listening');
-    recognition.start();
-}
-
-function stopListening() {
-    if (!isListening || !recognition) return;
-    
-    recognition.stop();
-    if (activeMic) {
-        activeMic.button.classList.remove('listening');
-    }
-    isListening = false;
-    activeMic = null;
-}
-
-function handleMicClick(e: MouseEvent) {
-    const target = e.currentTarget as HTMLButtonElement;
-    if (isListening) {
-        stopListening();
-    } else {
-        if (target === micDesignBtn) startListening(promptInput, micDesignBtn);
-        else if (target === micAiEditBtn) startListening(aiEditPromptInput, micAiEditBtn);
-        else if (target === micGenerateImageBtn) startListening(imagePromptInput, micGenerateImageBtn);
-    }
-}
-
-// --- AUTHENTICATION FUNCTIONS ---
-// (This is a mock authentication system using localStorage)
-
-function loadUsers() {
-    const usersString = localStorage.getItem(USERS_KEY);
-    allUsers = usersString ? JSON.parse(usersString) : [];
-    // Add a default admin if none exist for demo purposes
-    if (allUsers.length === 0) {
-        allUsers.push({ email: 'admin@example.com', passwordHash: 'admin123', role: 'admin', isVerified: true, name: 'Admin User' });
-        localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
-    }
-}
-
-function loadCurrentUser() {
-    const userString = localStorage.getItem(CURRENT_USER_KEY);
-    currentUser = userString ? JSON.parse(userString) : null;
-    updateAuthUI();
-}
-
-function updateAuthUI() {
-    if (currentUser) {
-        loginBtn.classList.add('hidden');
-        userDisplay.classList.remove('hidden');
-        userNameSpan.textContent = currentUser.name || currentUser.email;
-        if (!currentUser.isVerified) {
-            userVerificationNotice.classList.remove('hidden');
-            userVerificationNotice.innerHTML = `(Unverified) <button class="link-btn">Resend</button>`;
+        const suggestedTime = response.text.trim();
+        
+        // Basic validation for format YYYY-MM-DDTHH:MM
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(suggestedTime)) {
+            scheduleDateInput.value = suggestedTime;
         } else {
-            userVerificationNotice.classList.add('hidden');
+            showError("AI couldn't suggest a specific time, please set one manually.", socialErrorMessage);
         }
-        manageUsersBtn.classList.toggle('hidden', currentUser.role !== 'admin');
-    } else {
-        loginBtn.classList.remove('hidden');
-        userDisplay.classList.add('hidden');
+
+    } catch (error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isSuggestingTime = false;
+        suggestTimeBtn.disabled = false;
+        suggestTimeBtn.classList.remove('loading');
     }
 }
 
-function handleLogin(e: Event) {
-    e.preventDefault();
-    loginErrorMessage.classList.add('hidden');
-    const email = loginEmailInput.value;
-    const password = loginPasswordInput.value;
-    const user = allUsers.find(u => u.email === email && u.passwordHash === password);
-
-    if (user) {
-        currentUser = user;
-        localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-        updateAuthUI();
-        closeLoginModal();
-    } else {
-        loginErrorMessage.textContent = "Invalid email or password.";
-        loginErrorMessage.classList.remove('hidden');
-    }
-}
-
-function handleSignup(e: Event) {
-    e.preventDefault();
-    signupErrorMessage.classList.add('hidden');
-    const name = signupNameInput.value;
-    const email = signupEmailInput.value;
-    const password = signupPasswordInput.value;
-
-    if (allUsers.some(u => u.email === email)) {
-        signupErrorMessage.textContent = "An account with this email already exists.";
-        signupErrorMessage.classList.remove('hidden');
+function renderScheduledPosts() {
+    if (!scheduledPostsContainer) return;
+    scheduledPostsContainer.innerHTML = '';
+    if (scheduledPosts.length === 0) {
+        scheduledPostsContainer.innerHTML = `<p style="color: var(--text-secondary-color); text-align: center; padding: 2rem 0;">You have no posts scheduled.</p>`;
         return;
     }
 
-    const newUser: User = { name, email, passwordHash: password, role: 'user', isVerified: false };
-    allUsers.push(newUser);
-    localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
+    // Sort posts by date (upcoming first)
+    const sortedPosts = [...scheduledPosts].sort((a, b) => a.scheduleTime.getTime() - b.scheduleTime.getTime());
+
+    sortedPosts.forEach((post) => {
+        const postEl = document.createElement('div');
+        postEl.className = 'scheduled-post-item';
+        
+        const platformInfo = platforms.find(p => p.key === post.platform);
+        const formattedDate = post.scheduleTime.toLocaleString(undefined, {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
+        });
+
+        postEl.innerHTML = `
+            <div class="platform-icon">${platformInfo?.icon || ''}</div>
+            <div class="post-details">
+                <div class="post-meta">
+                    <strong>${platformInfo?.name || post.platform}</strong>
+                    <span class="scheduled-time">${formattedDate}</span>
+                </div>
+                <p class="post-content">${post.text}</p>
+            </div>
+            <button class="btn btn-icon delete-schedule-btn" aria-label="Delete scheduled post" title="Delete Post">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            </button>
+        `;
+
+        const deleteBtn = postEl.querySelector('.delete-schedule-btn');
+        deleteBtn?.addEventListener('click', () => {
+            scheduledPosts = scheduledPosts.filter(p => p !== post);
+            debouncedSaveSocialPrefs();
+            renderScheduledPosts();
+        });
+        
+        scheduledPostsContainer.appendChild(postEl);
+    });
+}
+
+function openBrainstormModal() {
+    brainstormResultsContainer.innerHTML = '';
+    generateBrainstormIdeasBtn.classList.remove('hidden');
+    brainstormModal.classList.remove('hidden');
+}
+
+async function handleGenerateBrainstormIdeas() {
+    if (isBrainstorming) return;
+
+    isBrainstorming = true;
+    generateBrainstormIdeasBtn.disabled = true;
+    generateBrainstormIdeasBtn.classList.add('loading');
+    brainstormResultsContainer.innerHTML = '<div class="loading-spinner" style="margin: 2rem auto;"></div>';
+
+    const topic = socialTopicInput.value.trim() || "general marketing";
+    const selectedBusiness = businesses.find(b => b.id === selectedBusinessId);
     
-    currentUser = newUser;
-    localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(currentUser));
-    updateAuthUI();
-    closeLoginModal();
+    const prompt = `Brainstorm 5 creative social media post ideas related to "${topic}" for a business called "${selectedBusiness?.name || 'our company'}". The tone should be ${socialTone}. Each idea should be a short, actionable concept.`;
+
+    try {
+        const response = await ai.models.generateContentStream({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        brainstormResultsContainer.innerHTML = '';
+        let fullResponseText = '';
+        for await (const chunk of response) {
+            fullResponseText += chunk.text;
+            // A simple way to render ideas as they come in
+            const ideas = fullResponseText.split(/\n\d\.\s/).filter(idea => idea.trim());
+            brainstormResultsContainer.innerHTML = ideas.map(idea => `<div class="brainstorm-idea">${idea.trim()}</div>`).join('');
+        }
+        
+        // Add click listeners to the generated ideas
+        brainstormResultsContainer.querySelectorAll('.brainstorm-idea').forEach(ideaEl => {
+            ideaEl.addEventListener('click', () => {
+                socialTopicInput.value = ideaEl.textContent || '';
+                brainstormModal.classList.add('hidden');
+            });
+        });
+
+    } catch (error) {
+        parseAndShowError(error, socialErrorMessage);
+        brainstormResultsContainer.innerHTML = `<p class="error-message">Could not generate ideas.</p>`;
+    } finally {
+        isBrainstorming = false;
+        generateBrainstormIdeasBtn.disabled = false;
+        generateBrainstormIdeasBtn.classList.remove('loading');
+    }
 }
 
-function handleLogout() {
-    currentUser = null;
-    localStorage.removeItem(CURRENT_USER_KEY);
-    updateAuthUI();
+function openReplyModal() {
+    replyGeneratorModal.classList.remove('hidden');
+    replyOriginalText.value = '';
+    replyResultsContainer.innerHTML = '';
 }
 
-function openLoginModal() {
-    loginModal.classList.remove('hidden');
-    loginErrorMessage.classList.add('hidden');
-    signupErrorMessage.classList.add('hidden');
-    loginForm.reset();
-    signupForm.reset();
-    // Default to login tab
-    switchAuthTab('login');
+async function handleGenerateReplies() {
+     if (isGeneratingReplies) return;
+
+    const originalText = replyOriginalText.value.trim();
+    if (!originalText) {
+        alert("Please paste the text you want to reply to.");
+        return;
+    }
+
+    isGeneratingReplies = true;
+    generateReplyBtn.disabled = true;
+    generateReplyBtn.classList.add('loading');
+    replyResultsContainer.innerHTML = '<div class="loading-spinner" style="margin: 1rem auto;"></div>';
+    
+    const tone = replyToneSelect.value;
+    const prompt = `Generate 3 distinct replies to the following social media comment/post. The desired tone for the replies is "${tone}". The original text is: "${originalText}"`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        // Simple parsing: split by newlines and filter out empty ones
+        const replies = response.text.split('\n').map(r => r.replace(/^\d\.\s*/, '').trim()).filter(r => r);
+        
+        replyResultsContainer.innerHTML = replies.map(reply => `<div class="generated-reply">${reply}</div>`).join('');
+
+        replyResultsContainer.querySelectorAll('.generated-reply').forEach(replyEl => {
+            replyEl.addEventListener('click', () => {
+                navigator.clipboard.writeText(replyEl.textContent || '');
+                replyEl.textContent = 'Copied!';
+                setTimeout(() => { replyGeneratorModal.classList.add('hidden'); }, 1000);
+            });
+        });
+
+    } catch (error) {
+        parseAndShowError(error, socialErrorMessage);
+        replyResultsContainer.innerHTML = `<p class="error-message">Could not generate replies.</p>`;
+    } finally {
+        isGeneratingReplies = false;
+        generateReplyBtn.disabled = false;
+        generateReplyBtn.classList.remove('loading');
+    }
 }
 
-function closeLoginModal() {
-    loginModal.classList.add('hidden');
+function openRefineModal() {
+    if (!postToRefine) return;
+    refineOriginalText.textContent = postToRefine.text;
+    refineCustomInstruction.value = '';
+    // Reset selections
+    refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => chip.classList.remove('selected'));
+    refinePostModal.classList.remove('hidden');
 }
 
+async function handleRefinePost() {
+    if (isRefiningPost || !postToRefine) return;
+
+    // FIX: `querySelector` returns `Element | null`, which lacks a `dataset` property. Cast to `HTMLElement | null` to access `dataset`.
+    const selectedAction = refineActionsContainer.querySelector('.style-chip.selected') as HTMLElement | null;
+    const instruction = selectedAction?.dataset.instruction || refineCustomInstruction.value.trim();
+
+    if (!instruction) {
+        alert("Please select an action or type a custom instruction.");
+        return;
+    }
+
+    isRefiningPost = true;
+    refineNowBtn.disabled = true;
+    refineNowBtn.classList.add('loading');
+
+    const prompt = `Refine the following social media post based on the instruction provided. Return only the refined post text.\n\n**Original Post:**\n"${postToRefine.text}"\n\n**Instruction:** ${instruction}`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        const newText = response.text.trim();
+        if (newText) {
+            // Find the post in the generated content and update it
+            const postIndex = generatedSocialContent.findIndex(p => p === postToRefine);
+            if (postIndex > -1) {
+                generatedSocialContent[postIndex].text = newText;
+                renderGeneratedPosts(); // Re-render all posts to show the change
+            }
+            refinePostModal.classList.add('hidden');
+        } else {
+            showError("The AI couldn't refine the post.", socialErrorMessage);
+        }
+
+    } catch (error) {
+        parseAndShowError(error, socialErrorMessage);
+    } finally {
+        isRefiningPost = false;
+        refineNowBtn.disabled = false;
+        refineNowBtn.classList.remove('loading');
+        postToRefine = null;
+    }
+}
+
+
+// --- AUTH FUNCTIONS (Simplified stubs for now) ---
+function openLoginModal() { loginModal.classList.remove('hidden'); }
+function closeLoginModal() { loginModal.classList.add('hidden'); }
 function switchAuthTab(tab: 'login' | 'signup') {
     if (tab === 'login') {
         loginTabBtn.classList.add('active');
@@ -3057,57 +2758,10 @@ function switchAuthTab(tab: 'login' | 'signup') {
     }
 }
 
-// --- User Management (Admin) ---
-function openUserManagementModal() {
-    renderUserManagementList();
-    userManagementModal.classList.remove('hidden');
-}
-
-function closeUserManagementModal() {
-    userManagementModal.classList.add('hidden');
-}
-
-function renderUserManagementList() {
-    userManagementList.innerHTML = '';
-    allUsers.forEach(user => {
-        const item = document.createElement('div');
-        item.className = 'user-management-item';
-        const isAdmin = user.role === 'admin';
-        const isCurrentUser = user.email === currentUser?.email;
-        item.innerHTML = `
-            <span class="user-management-item-email">${user.email}</span>
-            <div class="user-management-item-actions">
-                <select class="format-select user-role-select" ${isCurrentUser ? 'disabled' : ''}>
-                    <option value="user" ${!isAdmin ? 'selected' : ''}>User</option>
-                    <option value="admin" ${isAdmin ? 'selected' : ''}>Admin</option>
-                </select>
-                <button class="btn delete-user-btn" ${isCurrentUser ? 'disabled' : ''}>Delete</button>
-            </div>
-        `;
-        const roleSelect = item.querySelector('.user-role-select') as HTMLSelectElement;
-        roleSelect.addEventListener('change', () => {
-            user.role = roleSelect.value as 'user' | 'admin';
-            localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
-        });
-
-        const deleteBtn = item.querySelector('.delete-user-btn') as HTMLButtonElement;
-        deleteBtn.addEventListener('click', () => {
-            if (confirm(`Are you sure you want to delete user ${user.email}?`)) {
-                allUsers = allUsers.filter(u => u.email !== user.email);
-                localStorage.setItem(USERS_KEY, JSON.stringify(allUsers));
-                renderUserManagementList();
-            }
-        });
-        
-        userManagementList.appendChild(item);
-    });
-}
-
-
 // --- INITIALIZATION ---
+
 function initialize() {
-    // --- QUERY DOM ELEMENTS ---
-    // App Shell
+    // -- App Shell --
     themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
     tabImageStudio = document.getElementById('tab-image-studio') as HTMLButtonElement;
@@ -3115,42 +2769,14 @@ function initialize() {
     designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
     imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
     socialMediaManagerPage = document.getElementById('social-media-manager-page') as HTMLDivElement;
-
-    // Auth
-    authControls = document.getElementById('auth-controls') as HTMLDivElement;
-    loginBtn = document.getElementById('login-btn') as HTMLButtonElement;
-    userDisplay = document.getElementById('user-display') as HTMLDivElement;
-    userNameSpan = document.getElementById('user-name') as HTMLSpanElement;
-    userVerificationNotice = document.getElementById('user-verification-notice') as HTMLSpanElement;
-    manageUsersBtn = document.getElementById('manage-users-btn') as HTMLButtonElement;
-    logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
     loginModal = document.getElementById('login-modal') as HTMLDivElement;
-    loginTabBtn = document.getElementById('login-tab-btn') as HTMLButtonElement;
-    signupTabBtn = document.getElementById('signup-tab-btn') as HTMLButtonElement;
-    loginTabContent = document.getElementById('login-tab-content') as HTMLDivElement;
-    signupTabContent = document.getElementById('signup-tab-content') as HTMLDivElement;
-    loginForm = document.getElementById('login-form') as HTMLFormElement;
-    signupForm = document.getElementById('signup-form') as HTMLFormElement;
-    loginEmailInput = document.getElementById('login-email') as HTMLInputElement;
-    loginPasswordInput = document.getElementById('login-password') as HTMLInputElement;
-    loginErrorMessage = document.getElementById('login-error-message') as HTMLDivElement;
-    signupNameInput = document.getElementById('signup-name') as HTMLInputElement;
-    signupEmailInput = document.getElementById('signup-email') as HTMLInputElement;
-    signupPasswordInput = document.getElementById('signup-password') as HTMLInputElement;
-    signupErrorMessage = document.getElementById('signup-error-message') as HTMLDivElement;
-    forgotPasswordLink = document.getElementById('forgot-password-link') as HTMLButtonElement;
-    googleLoginBtn = document.getElementById('google-login-btn') as HTMLButtonElement;
-    googleSignupBtn = document.getElementById('google-signup-btn') as HTMLButtonElement;
-    userManagementModal = document.getElementById('user-management-modal') as HTMLDivElement;
-    userManagementList = document.getElementById('user-management-list') as HTMLDivElement;
-    closeUserManagementBtn = document.getElementById('close-user-management-btn') as HTMLButtonElement;
 
-    // Auto-Save
+    // -- Auto-Save Indicators --
     designSaveIndicator = document.getElementById('design-save-indicator') as HTMLDivElement;
     studioSaveIndicator = document.getElementById('studio-save-indicator') as HTMLDivElement;
     socialSaveIndicator = document.getElementById('social-save-indicator') as HTMLDivElement;
 
-    // Design Generator
+    // -- Design Generator --
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
     micDesignBtn = document.getElementById('mic-design-btn') as HTMLButtonElement;
@@ -3190,34 +2816,31 @@ function initialize() {
     shareBtn = document.getElementById('share-btn') as HTMLButtonElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
-
-    // Crop Modal
+    
+    // -- Cropping Modal --
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
     cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
     
-    // Share Modal
+    // -- Share Modal --
     shareModal = document.getElementById('share-modal') as HTMLDivElement;
     shareImagePreview = document.getElementById('share-image-preview') as HTMLImageElement;
     shareCaptionInput = document.getElementById('share-caption-input') as HTMLTextAreaElement;
     generateCaptionBtn = document.getElementById('generate-caption-btn') as HTMLButtonElement;
     shareNowBtn = document.getElementById('share-now-btn') as HTMLButtonElement;
     cancelShareBtn = document.getElementById('cancel-share-btn') as HTMLButtonElement;
-
-    // Image Studio
+    
+    // -- Image Studio --
     studioTabEdit = document.getElementById('studio-tab-edit') as HTMLButtonElement;
     studioTabGenerate = document.getElementById('studio-tab-generate') as HTMLButtonElement;
     studioEditPanel = document.getElementById('studio-edit-panel') as HTMLDivElement;
     studioGeneratePanel = document.getElementById('studio-generate-panel') as HTMLDivElement;
+    studioImageUploadContainer = document.getElementById('studio-image-upload-container') as HTMLDivElement;
     studioImageUploadArea = document.getElementById('studio-image-upload-area') as HTMLDivElement;
     studioLogoUpload = document.getElementById('studio-logo-upload') as HTMLInputElement;
     studioUploadPlaceholder = document.getElementById('studio-upload-placeholder') as HTMLDivElement;
-    uploadedImagesContainer = document.getElementById('uploaded-images-container') as HTMLDivElement;
-    uploadedImagesList = document.getElementById('uploaded-images-list') as HTMLDivElement;
-    mergeControls = document.getElementById('merge-controls') as HTMLDivElement;
-    mergePromptInput = document.getElementById('merge-prompt-input') as HTMLTextAreaElement;
-    mergeImagesBtn = document.getElementById('merge-images-btn') as HTMLButtonElement;
+    studioEditControls = document.getElementById('studio-edit-controls') as HTMLDivElement;
     adjustmentControls = document.querySelector('.adjustment-controls') as HTMLDivElement;
     resetFiltersBtn = document.getElementById('reset-filters-btn') as HTMLButtonElement;
     aiEditSection = document.getElementById('ai-edit-section') as HTMLDivElement;
@@ -3245,7 +2868,6 @@ function initialize() {
     customWidthInput = document.getElementById('custom-width-input') as HTMLInputElement;
     customHeightInput = document.getElementById('custom-height-input') as HTMLInputElement;
     aspectRatioLockToggle = document.getElementById('aspect-ratio-lock-toggle') as HTMLInputElement;
-    sizePreviewBox = document.getElementById('size-preview-box') as HTMLDivElement;
     generateImageBtn = document.getElementById('generate-image-btn') as HTMLButtonElement;
     studioOutputPlaceholder = document.getElementById('studio-output-placeholder') as HTMLDivElement;
     studioLoader = document.getElementById('studio-loader') as HTMLDivElement;
@@ -3260,8 +2882,8 @@ function initialize() {
     studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLButtonElement;
     studioShareBtn = document.getElementById('studio-share-btn') as HTMLButtonElement;
     studioErrorMessage = document.getElementById('studio-error-message') as HTMLDivElement;
-    
-    // Social Media Manager
+
+    // -- Social Media Manager --
     businessSelect = document.getElementById('business-select') as HTMLSelectElement;
     manageBusinessesBtn = document.getElementById('manage-businesses-btn') as HTMLButtonElement;
     socialTopicInput = document.getElementById('social-topic-input') as HTMLTextAreaElement;
@@ -3313,99 +2935,68 @@ function initialize() {
     cancelRefineBtn = document.getElementById('cancel-refine-btn') as HTMLButtonElement;
     refineNowBtn = document.getElementById('refine-now-btn') as HTMLButtonElement;
 
-    // --- SETUP AUTO-SAVING ---
-    debouncedSavePrefs = createDebouncedSaver(savePrefs, 700);
-    debouncedSaveStudioPrefs = createDebouncedSaver(saveStudioPrefs, 700);
-    debouncedSaveSocialPrefs = createDebouncedSaver(saveSocialPrefs, 700);
 
-    // --- INITIAL LOAD ---
-    loadTheme();
-    loadUsers();
-    loadCurrentUser();
-    handleLoadPrefs();
-    loadStudioPrefs();
-    loadSocialPrefs();
-    
-    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
-    if (lastTab) {
-        switchAppTab(lastTab);
-    }
+    // --- SETUP DEBOUNCED SAVERS ---
+    debouncedSavePrefs = createDebouncedSaver(savePrefs);
+    debouncedSaveStudioPrefs = createDebouncedSaver(saveStudioPrefs);
+    debouncedSaveSocialPrefs = createDebouncedSaver(saveSocialPrefs);
 
-    initializeSpeechRecognition();
-
-    // --- ATTACH EVENT LISTENERS ---
-    // App Shell
+    // --- ADD EVENT LISTENERS ---
+    // -- App Shell --
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
+    // FIX: The variable 'tabManager' was not defined. It should be 'tabSocialManager'.
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
-
-    // Auth
-    loginBtn.addEventListener('click', openLoginModal);
-    logoutBtn.addEventListener('click', handleLogout);
-    loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
-    loginTabBtn.addEventListener('click', () => switchAuthTab('login'));
-    signupTabBtn.addEventListener('click', () => switchAuthTab('signup'));
-    loginForm.addEventListener('submit', handleLogin);
-    signupForm.addEventListener('submit', handleSignup);
-    manageUsersBtn.addEventListener('click', openUserManagementModal);
-    userManagementModal.addEventListener('click', (e) => { if (e.target === userManagementModal) closeUserManagementModal(); });
-    closeUserManagementBtn.addEventListener('click', closeUserManagementModal);
-
-    // Design Generator
+    
+    // -- Design Generator --
     promptInput.addEventListener('input', () => {
         enhancePromptBtn.disabled = !promptInput.value.trim();
         debouncedSavePrefs();
     });
-    [companyNameInput, contactDetailsInput].forEach(el => el.addEventListener('input', debouncedSavePrefs));
-    micDesignBtn.addEventListener('click', handleMicClick);
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
+    companyNameInput.addEventListener('input', debouncedSavePrefs);
+    contactDetailsInput.addEventListener('input', debouncedSavePrefs);
     imageUploadArea.addEventListener('click', () => logoUpload.click());
-    imageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); imageUploadArea.classList.add('drag-over'); });
-    imageUploadArea.addEventListener('dragleave', () => imageUploadArea.classList.remove('drag-over'));
-    imageUploadArea.addEventListener('drop', (e) => { e.preventDefault(); imageUploadArea.classList.remove('drag-over'); handleLogoSelection(e.dataTransfer?.files || null); });
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
     removeLogoBtn.addEventListener('click', handleRemoveLogo);
-    applyCropBtn.addEventListener('click', handleApplyCrop);
-    cancelCropBtn.addEventListener('click', handleCancelCrop);
+    generateBtn.addEventListener('click', handleGenerateClick);
+    downloadBtn.addEventListener('click', handleDownloadClick);
+    shareBtn.addEventListener('click', () => openShareModal('design'));
+    clearPrefsBtn.addEventListener('click', handleClearPrefs);
+    
+    // -- Logo Customization --
     logoSizeOptions.forEach(option => option.addEventListener('click', handleLogoSizeSelection));
     logoPositionOptions.forEach(option => option.addEventListener('click', handleLogoPositionSelection));
     logoRotationSlider.addEventListener('input', handleLogoRotationChange);
-    logoOpacitySlider.addEventListener('input', handleLogoOpacityChange);
     resetRotationBtn.addEventListener('click', handleResetRotation);
+    logoOpacitySlider.addEventListener('input', handleLogoOpacityChange);
     resetOpacityBtn.addEventListener('click', handleResetOpacity);
+
+    // -- Design Style Options --
     paletteOptions.forEach(option => option.addEventListener('click', handlePaletteSelection));
     layoutOptions.forEach(option => option.addEventListener('click', handleLayoutSelection));
     backgroundOptions.forEach(option => option.addEventListener('click', handleBackgroundSelection));
     fontOptions.forEach(option => option.addEventListener('click', handleFontSelection));
     sizeOptions.forEach(option => option.addEventListener('click', handleSizeSelection));
     textEffectOptions.forEach(option => option.addEventListener('click', handleTextEffectSelection));
-    generateBtn.addEventListener('click', handleGenerateClick);
-    clearPrefsBtn.addEventListener('click', handleClearPrefs);
-    downloadBtn.addEventListener('click', handleDownloadClick);
-    shareBtn.addEventListener('click', () => openShareModal('design'));
 
-    // Share Modal
-    cancelShareBtn.addEventListener('click', closeShareModal);
-    shareModal.addEventListener('click', (e) => { if (e.target === shareModal) closeShareModal(); });
+    // -- Modals --
+    applyCropBtn.addEventListener('click', handleApplyCrop);
+    cancelCropBtn.addEventListener('click', handleCancelCrop);
     generateCaptionBtn.addEventListener('click', handleGenerateCaptionClick);
     shareNowBtn.addEventListener('click', handleShareNowClick);
+    cancelShareBtn.addEventListener('click', closeShareModal);
     
-    // Image Studio
+    // -- Image Studio --
     studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
     studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
     studioImageUploadArea.addEventListener('click', () => studioLogoUpload.click());
-    studioImageUploadArea.addEventListener('dragover', (e) => { e.preventDefault(); studioImageUploadArea.classList.add('drag-over'); });
-    studioImageUploadArea.addEventListener('dragleave', () => studioImageUploadArea.classList.remove('drag-over'));
-    studioImageUploadArea.addEventListener('drop', (e) => { e.preventDefault(); studioImageUploadArea.classList.remove('drag-over'); handleStudioImageUpload(e.dataTransfer?.files || null); });
     studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
-    undoBtn.addEventListener('click', handleUndoClick);
-    redoBtn.addEventListener('click', handleRedoClick);
     resetFiltersBtn.addEventListener('click', resetAllImageFilters);
     [brightnessSlider, contrastSlider, saturateSlider, blurSlider].forEach(slider => {
-        slider.addEventListener('input', (e) => {
-            const target = e.target as HTMLInputElement;
-            studioImageFilters[target.id.split('-')[0] as keyof typeof studioImageFilters] = Number(target.value);
+        slider.addEventListener('input', () => {
+            (studioImageFilters as any)[slider.id.replace('-slider', '') as keyof typeof studioImageFilters] = parseFloat(slider.value);
             applyStudioImageFilters();
         });
     });
@@ -3416,86 +3007,83 @@ function initialize() {
         btn.setAttribute('aria-pressed', String(!isPressed));
         handleTextStyleUpdate();
     }));
-    textPositionGrid.forEach(pos => pos.addEventListener('click', handleTextPositionUpdate));
-    aiEditPromptInput.addEventListener('input', () => { enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim(); });
-    micAiEditBtn.addEventListener('click', handleMicClick);
+    textPositionGrid.forEach(option => option.addEventListener('click', handleTextPositionUpdate));
+    aiEditPromptInput.addEventListener('input', () => enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim());
     enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
     applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
-    mergePromptInput.addEventListener('input', () => { mergeImagesBtn.disabled = !mergePromptInput.value.trim() || uploadedStudioImages.length < 2; });
-    mergeImagesBtn.addEventListener('click', handleMergeImagesClick);
     imagePromptInput.addEventListener('input', () => {
         enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
         debouncedSaveStudioPrefs();
     });
-    micGenerateImageBtn.addEventListener('click', handleMicClick);
     enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
-    styleChips.forEach(chip => chip.addEventListener('click', () => {
-        const style = chip.dataset.style;
-        if (!style) return;
-        chip.classList.toggle('selected');
-        const isSelected = chip.classList.contains('selected');
-        chip.setAttribute('aria-checked', String(isSelected));
-        if (isSelected) selectedImageStyles.add(style);
-        else selectedImageStyles.delete(style);
-        debouncedSaveStudioPrefs();
-    }));
+    styleChips.forEach(chip => {
+        chip.addEventListener('click', () => {
+            const style = chip.dataset.style;
+            if (!style) return;
+            chip.classList.toggle('selected');
+            const isSelected = chip.classList.contains('selected');
+            chip.setAttribute('aria-checked', String(isSelected));
+            if (isSelected) selectedImageStyles.add(style);
+            else selectedImageStyles.delete(style);
+            debouncedSaveStudioPrefs();
+        });
+    });
     sizePresetChips.forEach(chip => chip.addEventListener('click', handleSizePresetClick));
-    [customWidthInput, customHeightInput].forEach(input => input.addEventListener('change', handleCustomDimensionInput));
+    customWidthInput.addEventListener('change', handleCustomDimensionInput);
+    customHeightInput.addEventListener('change', handleCustomDimensionInput);
     aspectRatioLockToggle.addEventListener('change', handleAspectRatioLockToggle);
     generateImageBtn.addEventListener('click', handleGenerateImageClick);
+    undoBtn.addEventListener('click', handleUndoClick);
+    redoBtn.addEventListener('click', handleRedoClick);
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
     studioShareBtn.addEventListener('click', () => openShareModal('studio'));
     
-    // Social Media Manager
+    // -- Social Media Manager --
     socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
     socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
+    manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
+    businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
+    businessForm.addEventListener('submit', handleBusinessFormSubmit);
+    cancelBusinessEditBtn.addEventListener('click', resetBusinessForm);
     businessSelect.addEventListener('change', () => {
         selectedBusinessId = parseInt(businessSelect.value);
         debouncedSaveSocialPrefs();
     });
-    manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
-    businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
-    businessListContainer.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement;
-        const editBtn = target.closest('.edit-btn') as HTMLButtonElement;
-        const deleteBtn = target.closest('.delete-btn') as HTMLButtonElement;
-        if (editBtn) handleEditBusinessClick(parseInt(editBtn.dataset.id!));
-        if (deleteBtn) handleDeleteBusinessClick(parseInt(deleteBtn.dataset.id!));
-    });
-    businessForm.addEventListener('submit', handleBusinessFormSubmit);
-    cancelBusinessEditBtn.addEventListener('click', resetBusinessForm);
     socialTopicInput.addEventListener('input', debouncedSaveSocialPrefs);
     socialToneSelect.addEventListener('change', debouncedSaveSocialPrefs);
-    brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
-    closeBrainstormBtn.addEventListener('click', closeBrainstormModal);
-    generateBrainstormIdeasBtn.addEventListener('click', handleBrainstormClick);
-    selectAllPlatformsBtn.addEventListener('click', () => {
-        const shouldSelectAll = selectedPlatforms.size < platforms.length;
-        if (shouldSelectAll) {
-            platforms.forEach(p => selectedPlatforms.add(p.key));
-        } else {
-            selectedPlatforms.clear();
-        }
-        renderSocialPlatforms();
-        debouncedSaveSocialPrefs();
-    });
-    generateSocialBtn.addEventListener('click', handleGenerateSocialClick);
-    generateRepliesBtn.addEventListener('click', openReplyModal);
-    closeReplyModalBtn.addEventListener('click', closeReplyModal);
-    generateReplyBtn.addEventListener('click', handleGenerateReplies);
-    refineActionsContainer.addEventListener('click', (e) => {
-        const target = e.target as HTMLElement;
-        const chip = target.closest('.style-chip') as HTMLButtonElement;
-        if (!chip) return;
-        // Toggle behavior: deselect others when one is selected
-        refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
-        chip.classList.add('selected');
-    });
-    cancelRefineBtn.addEventListener('click', closeRefineModal);
-    refineNowBtn.addEventListener('click', handleRefinePost);
-    suggestTimeBtn.addEventListener('click', handleSuggestTime);
+    selectAllPlatformsBtn.addEventListener('click', handleSelectAllPlatforms);
+    generateSocialBtn.addEventListener('click', handleGenerateSocialBtn);
     schedulePostsBtn.addEventListener('click', handleSchedulePosts);
+    suggestTimeBtn.addEventListener('click', handleSuggestTime);
+    brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
+    generateBrainstormIdeasBtn.addEventListener('click', handleGenerateBrainstormIdeas);
+    closeBrainstormBtn.addEventListener('click', () => brainstormModal.classList.add('hidden'));
+    generateRepliesBtn.addEventListener('click', openReplyModal);
+    closeReplyModalBtn.addEventListener('click', () => replyGeneratorModal.classList.add('hidden'));
+    generateReplyBtn.addEventListener('click', handleGenerateReplies);
+    refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => {
+        chip.addEventListener('click', (e) => {
+            refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
+            (e.currentTarget as HTMLElement).classList.add('selected');
+        });
+    });
+    refineNowBtn.addEventListener('click', handleRefinePost);
+    cancelRefineBtn.addEventListener('click', () => refinePostModal.classList.add('hidden'));
+
+
+    // --- FINAL UI SETUP ---
+    loadTheme();
+    handleLoadPrefs();
+    loadStudioPrefs();
+    loadSocialPrefs();
+    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
+    if (lastTab) {
+        switchAppTab(lastTab);
+    } else {
+        switchAppTab('design');
+    }
 }
 
-// --- STARTUP ---
+
+// Wait for the DOM to be fully loaded before initializing
 document.addEventListener('DOMContentLoaded', initialize);
