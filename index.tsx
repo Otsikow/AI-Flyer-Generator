@@ -1629,6 +1629,26 @@ async function handleShareNowClick() {
 
 // --- EVENT HANDLERS (Image Studio) ---
 
+// -- Voice Input --
+function handleMicClick(inputEl: HTMLTextAreaElement, buttonEl: HTMLButtonElement) {
+    if (!recognition) return;
+
+    if (isListening) {
+        recognition.stop();
+        return; // onend will handle cleanup
+    }
+
+    activeMic = { input: inputEl, button: buttonEl };
+    isListening = true;
+    try {
+        recognition.start();
+    } catch (e) {
+        console.error("Error starting speech recognition:", e);
+        isListening = false;
+        activeMic = null;
+    }
+}
+
 // -- History Management --
 function updateUndoRedoButtons() {
     undoBtn.disabled = studioHistoryIndex <= 0;
@@ -3162,6 +3182,57 @@ async function initialize() {
     debouncedSaveStudioPrefs = createDebouncedSaver(saveUserPreferences);
     debouncedSaveSocialPrefs = createDebouncedSaver(saveUserPreferences);
 
+    // --- SETUP SPEECH RECOGNITION ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+            if (activeMic) {
+                activeMic.button.classList.add('listening');
+                activeMic.button.setAttribute('aria-label', 'Stop Listening');
+                activeMic.button.title = 'Stop Listening';
+            }
+        };
+
+        recognition.onresult = (event: any) => {
+            const transcript = event.results[0][0].transcript;
+            if (activeMic) {
+                activeMic.input.value = transcript;
+                // Trigger input event to enable enhance buttons and auto-save
+                activeMic.input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        };
+
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                showError("Microphone access was denied. Please allow it in your browser settings.");
+            } else {
+                showError("An error occurred during speech recognition.");
+            }
+        };
+
+        recognition.onend = () => {
+            if (activeMic) {
+                activeMic.button.classList.remove('listening');
+                activeMic.button.setAttribute('aria-label', 'Use Voice to Describe');
+                activeMic.button.title = 'Use Voice';
+            }
+            isListening = false;
+            activeMic = null;
+        };
+    } else {
+        // Hide all mic buttons if the browser doesn't support the API
+        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
+            if (btn) btn.classList.add('hidden');
+        });
+        console.warn("Speech Recognition API not supported in this browser.");
+    }
+
     // --- ADD EVENT LISTENERS ---
     // -- App Shell & Auth --
     themeSwitcherBtn.addEventListener('click', toggleTheme);
@@ -3183,6 +3254,7 @@ async function initialize() {
     promptInput.addEventListener('input', () => {
         enhancePromptBtn.disabled = !promptInput.value.trim();
     });
+    micDesignBtn.addEventListener('click', () => handleMicClick(promptInput, micDesignBtn));
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
     imageUploadArea.addEventListener('click', () => logoUpload.click());
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
@@ -3235,6 +3307,7 @@ async function initialize() {
         handleTextStyleUpdate();
     }));
     textPositionGrid.forEach(option => option.addEventListener('click', handleTextPositionUpdate));
+    micAiEditBtn.addEventListener('click', () => handleMicClick(aiEditPromptInput, micAiEditBtn));
     aiEditPromptInput.addEventListener('input', () => enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim());
     enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
     applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
@@ -3242,6 +3315,7 @@ async function initialize() {
         enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
         debouncedSaveStudioPrefs();
     });
+    micGenerateImageBtn.addEventListener('click', () => handleMicClick(imagePromptInput, micGenerateImageBtn));
     enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
     styleChips.forEach(chip => {
         chip.addEventListener('click', () => {
