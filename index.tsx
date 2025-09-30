@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 // Since cropperjs is loaded from a CDN, we declare its type here to satisfy TypeScript
@@ -301,13 +300,12 @@ let isSuggestingTime = false;
 
 // Auth State
 type User = {
+    id: string;
     email: string;
-    passwordHash: string;
+    name: string;
     role: 'user' | 'admin';
-    name?: string;
     isVerified: boolean;
 };
-let allUsers: User[] = [];
 let currentUser: User | null = null;
 
 // Auto-Save State
@@ -315,13 +313,9 @@ let autoSaveStatus: 'idle' | 'saving' | 'saved' = 'idle';
 let autoSaveTimeout: number | null = null;
 
 // Shared State
-const PREFERENCES_KEY = 'flyerGeneratorPrefs';
-const STUDIO_PREFERENCES_KEY = 'imageStudioPrefs';
-const SOCIAL_PREFERENCES_KEY = 'socialManagerPrefs';
 const THEME_KEY = 'flyergen-theme';
 const LAST_TAB_KEY = 'flyergen-last-tab';
-const USERS_KEY = 'flyergen-users';
-const CURRENT_USER_KEY = 'flyergen-currentUser';
+const AUTH_TOKEN_KEY = 'flyergen-auth-token';
 
 
 // --- GEMINI SETUP ---
@@ -342,6 +336,111 @@ const platforms = [
 let debouncedSavePrefs = () => {};
 let debouncedSaveStudioPrefs = () => {};
 let debouncedSaveSocialPrefs = () => {};
+
+// --- API HELPER FUNCTIONS ---
+const API_BASE_URL = ''; // Use relative path for same-origin API
+
+async function apiFetch(endpoint: string, options: RequestInit = {}) {
+    // This is a mock API layer that simulates network delay and stateful storage
+    // for resources like businesses and scheduled posts.
+    console.log(`Mock API Call: ${options.method || 'GET'} ${endpoint}`, options.body ? JSON.parse(options.body as string) : '');
+
+    const responsePromise = new Promise<Response>((resolve, reject) => {
+        setTimeout(() => {
+            try {
+                const method = options.method || 'GET';
+                const body = options.body ? JSON.parse(options.body as string) : null;
+
+                // --- Business Endpoint Logic ---
+                if (endpoint.startsWith('/api/businesses')) {
+                    const urlParts = endpoint.split('/');
+                    const businessId = urlParts.length === 4 ? parseInt(urlParts[3]) : null;
+
+                    if (method === 'GET') {
+                        return resolve(new Response(JSON.stringify(businesses), { headers: { 'Content-Type': 'application/json' } }));
+                    }
+                    if (method === 'POST') {
+                        const newBusiness = { ...body, id: Date.now() }; // Use timestamp for simple unique ID
+                        businesses.push(newBusiness);
+                        return resolve(new Response(JSON.stringify(newBusiness), { status: 201 }));
+                    }
+                    if (method === 'PUT' && businessId) {
+                        const index = businesses.findIndex(b => b.id === businessId);
+                        if (index !== -1) {
+                            businesses[index] = { ...businesses[index], ...body, id: businessId };
+                        }
+                        return resolve(new Response(null, { status: 204 }));
+                    }
+                    if (method === 'DELETE' && businessId) {
+                        businesses = businesses.filter(b => b.id !== businessId);
+                        return resolve(new Response(null, { status: 204 }));
+                    }
+                }
+
+                // --- Scheduled Posts Logic ---
+                if (endpoint.startsWith('/api/posts/scheduled')) {
+                    const urlParts = endpoint.split('/');
+                    const postId = urlParts.length === 4 ? parseInt(urlParts[3]) : null;
+
+                    if (method === 'GET') {
+                        return resolve(new Response(JSON.stringify(scheduledPosts), { headers: { 'Content-Type': 'application/json' } }));
+                    }
+                    if (method === 'POST') {
+                        const newPosts = body.map((p: any, i: number) => ({ ...p, id: Date.now() + i })); // Create unique IDs
+                        scheduledPosts.push(...newPosts);
+                        return resolve(new Response(null, { status: 204 }));
+                    }
+                    if (method === 'DELETE' && postId) {
+                        scheduledPosts = scheduledPosts.filter(p => p.id !== postId);
+                        return resolve(new Response(null, { status: 204 }));
+                    }
+                }
+                
+                // --- Fallback for User & Preferences (stateless mock) ---
+                if (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'PATCH') {
+                    return resolve(new Response(null, { status: 204 }));
+                }
+
+                let data: any = {};
+                if (endpoint.startsWith('/api/users/me/preferences')) {
+                    data = {}; // Simple GET for prefs
+                } else if (endpoint.startsWith('/api/users/me')) {
+                    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+                    if (token) {
+                        data = { id: 'user-123', name: 'Demo User', email: 'user@example.com', role: 'admin', isVerified: true };
+                    } else {
+                        return reject(new Error("No auth token found."));
+                    }
+                }
+
+                return resolve(new Response(JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } }));
+
+            } catch(e) {
+                return reject(e);
+            }
+        }, 200 + Math.random() * 300);
+    });
+
+    const response = await responsePromise;
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(errorData.message || 'An API error occurred.');
+    }
+    if (response.status === 204) {
+        return null;
+    }
+     // For 201 Created, we might have a body
+    if (response.status === 201) {
+        try {
+            return await response.json();
+        } catch (e) {
+            return null;
+        }
+    }
+    return response.json();
+}
+
 
 // --- HELPER FUNCTIONS ---
 
@@ -534,7 +633,6 @@ function switchAppTab(targetTab: 'design' | 'studio' | 'social') {
         tabImageStudio.classList.add('active');
         imageStudioPage.classList.add('active');
     } else if (targetTab === 'social') {
-        // FIX: The variable 'tabManager' was not defined. It should be 'tabSocialManager'.
         tabSocialManager.classList.add('active');
         socialMediaManagerPage.classList.add('active');
     }
@@ -572,35 +670,108 @@ function setAutoSaveStatus(status: 'idle' | 'saving' | 'saved') {
     });
 }
 
-function createDebouncedSaver(saveFn: () => void, delay = 500) {
-    const debouncedFn = debounce(() => {
-        saveFn();
-        setAutoSaveStatus('saved');
+function createDebouncedSaver(saveFn: () => void, delay = 1000) {
+    const debouncedFn = debounce(async () => {
+        if (!currentUser) return; // Don't save if not logged in
+        try {
+            await saveFn();
+            setAutoSaveStatus('saved');
+        } catch (error) {
+            console.error("Auto-save failed:", error);
+            setAutoSaveStatus('idle'); // Or show an error state
+            showError("Could not save preferences.", errorMessage);
+        }
     }, delay);
 
-    return () => {
+    const saver = () => {
         setAutoSaveStatus('saving');
         debouncedFn();
     };
+    
+    (saver as any).cancel = debouncedFn.cancel;
+
+    return saver;
 }
 
-function saveStudioPrefs() {
-    imagePrompt = imagePromptInput.value;
-    const prefs = {
-        imageGenerationSize,
-        imagePrompt,
-        selectedImageStyles: Array.from(selectedImageStyles)
-    };
-    localStorage.setItem(STUDIO_PREFERENCES_KEY, JSON.stringify(prefs));
-}
 
-function loadStudioPrefs() {
-    const prefsString = localStorage.getItem(STUDIO_PREFERENCES_KEY);
-    if (prefsString) {
-        const prefs = JSON.parse(prefsString);
-        if (prefs.imageGenerationSize) {
-            imageGenerationSize = prefs.imageGenerationSize;
+async function saveUserPreferences() {
+    if (!currentUser) return;
+
+    // Consolidate preferences from all tabs into one object
+    const allPreferences = {
+        design: {
+            prompt: promptInput.value,
+            companyName: companyNameInput.value,
+            contactDetails: contactDetailsInput.value,
+            palette: selectedPalette,
+            layout: selectedLayout,
+            font: selectedFont,
+            bgType: selectedBackgroundType,
+            bgValue: selectedBackgroundValue,
+            size: selectedSize,
+            textEffects: Array.from(selectedTextEffects),
+            logoSize: selectedLogoSize,
+            logoPosition: selectedLogoPosition,
+            logoRotation: selectedLogoRotation,
+            logoOpacity: selectedLogoOpacity,
+            logoDataUrl: logoDataUrl,
+        },
+        studio: {
+            imageGenerationSize,
+            imagePrompt: imagePromptInput.value,
+            selectedImageStyles: Array.from(selectedImageStyles)
+        },
+        social: {
+            selectedBusinessId,
+            socialTopic: socialTopicInput.value,
+            socialTone: socialToneSelect.value,
+            selectedPlatforms: Array.from(selectedPlatforms)
         }
+    };
+    
+    // In a real app, this would make a PUT request to your backend
+    // For this example, we continue to use localStorage but keyed by user
+    // This simulates user-specific preferences without a real backend.
+    await apiFetch('/api/users/me/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(allPreferences)
+    });
+}
+
+async function loadUserPreferences() {
+    if (!currentUser) {
+        handleLoadPrefs(null); // Load default state
+        loadStudioPrefs(null);
+        // Social prefs loaded separately
+        return;
+    };
+
+    try {
+        const prefs = await apiFetch('/api/users/me/preferences');
+        handleLoadPrefs(prefs?.design || null);
+        loadStudioPrefs(prefs?.studio || null);
+        // social prefs like topic/tone are part of the 'social' key
+        if(prefs?.social){
+            socialTopicInput.value = prefs.social.socialTopic || '';
+            socialToneSelect.value = prefs.social.socialTone || 'Professional';
+            selectedPlatforms = new Set(prefs.social.selectedPlatforms || []);
+            // Note: selectedBusinessId is handled in loadSocialData
+            renderSocialPlatforms();
+        }
+
+    } catch (error) {
+        console.error("Failed to load preferences:", error);
+        showError("Could not load your saved preferences.", errorMessage);
+        // Load defaults if fetching fails
+        handleLoadPrefs(null);
+        loadStudioPrefs(null);
+    }
+}
+
+
+function loadStudioPrefs(prefs: any | null) {
+    if (prefs) {
+        imageGenerationSize = prefs.imageGenerationSize || imageGenerationSize;
         imagePrompt = prefs.imagePrompt || '';
         selectedImageStyles = new Set(prefs.selectedImageStyles || []);
     }
@@ -616,46 +787,19 @@ function loadStudioPrefs() {
     updateImageSizeUI();
 }
 
-function savePrefs() {
-    const prefs: any = {
-        prompt: promptInput.value,
-        companyName: companyNameInput.value,
-        contactDetails: contactDetailsInput.value,
-        palette: selectedPalette,
-        layout: selectedLayout,
-        font: selectedFont,
-        bgType: selectedBackgroundType,
-        bgValue: selectedBackgroundValue,
-        size: selectedSize,
-        textEffects: Array.from(selectedTextEffects),
-        logoSize: selectedLogoSize,
-        logoPosition: selectedLogoPosition,
-        logoRotation: selectedLogoRotation,
-        logoOpacity: selectedLogoOpacity,
-        logoDataUrl: logoDataUrl,
-    };
-    
-    localStorage.setItem(PREFERENCES_KEY, JSON.stringify(prefs));
-}
-
-function handleLoadPrefs() {
-    const prefsString = localStorage.getItem(PREFERENCES_KEY);
-    if (!prefsString) {
-        // Even if no prefs, update text for default state
-        updateDynamicText(selectedSize);
+function handleLoadPrefs(prefs: any | null) {
+    if (!prefs) {
+        // Reset to default state if no prefs are passed
+        handleClearPrefs();
         return;
     };
 
-    const prefs = JSON.parse(prefsString);
-
     promptInput.value = prefs.prompt || '';
-    // After loading, check if the enhance button should be enabled
     enhancePromptBtn.disabled = !promptInput.value.trim();
 
     companyNameInput.value = prefs.companyName || '';
     contactDetailsInput.value = prefs.contactDetails || '';
 
-    // Load Palette
     if (prefs.palette) {
         selectedPalette = prefs.palette;
         paletteOptions.forEach(option => {
@@ -665,7 +809,6 @@ function handleLoadPrefs() {
         });
     }
     
-    // Load Layout
     if (prefs.layout) {
         selectedLayout = prefs.layout;
         layoutOptions.forEach(option => {
@@ -675,7 +818,6 @@ function handleLoadPrefs() {
         });
     }
 
-    // Load Font
     if (prefs.font) {
         selectedFont = prefs.font;
         fontOptions.forEach(option => {
@@ -685,7 +827,6 @@ function handleLoadPrefs() {
         });
     }
 
-    // Load Size
     if (prefs.size) {
         selectedSize = prefs.size;
         sizeOptions.forEach(option => {
@@ -695,7 +836,6 @@ function handleLoadPrefs() {
         });
     }
 
-    // Load Text Effects
     if (prefs.textEffects && Array.isArray(prefs.textEffects)) {
         selectedTextEffects = new Set(prefs.textEffects);
         textEffectOptions.forEach(option => {
@@ -706,7 +846,6 @@ function handleLoadPrefs() {
         });
     }
     
-    // Load Background
     if (prefs.bgType && prefs.bgValue) {
         selectedBackgroundType = prefs.bgType;
         selectedBackgroundValue = prefs.bgValue;
@@ -725,7 +864,6 @@ function handleLoadPrefs() {
         });
     }
 
-    // Load Logo Size
     if (prefs.logoSize) {
         selectedLogoSize = prefs.logoSize;
         logoSizeOptions.forEach(option => {
@@ -735,7 +873,6 @@ function handleLoadPrefs() {
         });
     }
 
-    // Load Logo Position
     if (prefs.logoPosition) {
         selectedLogoPosition = prefs.logoPosition;
         logoPositionOptions.forEach(option => {
@@ -745,7 +882,6 @@ function handleLoadPrefs() {
         });
     }
 
-    // Load Logo Rotation & Opacity
     selectedLogoRotation = prefs.logoRotation || 0;
     logoRotationSlider.value = String(selectedLogoRotation);
     logoRotationValue.textContent = `${selectedLogoRotation}°`;
@@ -755,7 +891,6 @@ function handleLoadPrefs() {
     logoOpacityValue.textContent = `${selectedLogoOpacity}%`;
 
 
-    // Load Logo
     if (prefs.logoDataUrl) {
         logoDataUrl = prefs.logoDataUrl;
         logoPreview.src = logoDataUrl;
@@ -765,16 +900,12 @@ function handleLoadPrefs() {
         logoCustomizationSection.classList.remove('hidden');
     }
 
-    // Update all dynamic text fields based on loaded preferences
     updateDynamicText(selectedSize);
 }
 
 function handleClearPrefs() {
-    // Cancel any pending auto-save before clearing
     (debouncedSavePrefs as any).cancel();
-    localStorage.removeItem(PREFERENCES_KEY);
     
-    // --- Reset all state variables to default ---
     logoDataUrl = null;
     selectedPalette = 'default';
     selectedLayout = 'balanced';
@@ -788,13 +919,11 @@ function handleClearPrefs() {
     selectedLogoRotation = 0;
     selectedLogoOpacity = 100;
 
-    // --- Reset the UI to reflect the default state ---
     promptInput.value = '';
     enhancePromptBtn.disabled = true;
     companyNameInput.value = '';
     contactDetailsInput.value = '';
     
-    // Reset logo UI
     logoPreview.src = '';
     logoPreview.classList.add('hidden');
     uploadPlaceholder.classList.remove('hidden');
@@ -807,7 +936,6 @@ function handleClearPrefs() {
     logoOpacityValue.textContent = '100%';
 
 
-    // Reset all selectable options
     [
         paletteOptions, layoutOptions, backgroundOptions,
         fontOptions, sizeOptions, textEffectOptions,
@@ -816,7 +944,6 @@ function handleClearPrefs() {
         options.forEach(option => {
             const el = option as HTMLElement;
             let isDefault = false;
-            // Check based on the option type what the default is
             if (el.matches('.palette-option')) isDefault = el.dataset.paletteName === 'default';
             if (el.matches('.layout-option')) isDefault = el.dataset.layout === 'balanced';
             if (el.matches('.background-option')) isDefault = el.dataset.bgType === 'none';
@@ -835,13 +962,15 @@ function handleClearPrefs() {
         });
     });
 
-    // Update all dynamic text fields to reflect the default state
     updateDynamicText(selectedSize);
+
+    // Also clear on the backend
+    debouncedSavePrefs();
 }
 
 // --- EVENT HANDLERS (Design Generator) ---
 async function handleEnhancePromptClick() {
-    if (isEnhancing || !promptInput.value.trim()) return;
+    if (isEnhancing || !promptInput.value.trim() || !currentUser) return;
 
     isEnhancing = true;
     enhancePromptBtn.disabled = true;
@@ -861,7 +990,6 @@ async function handleEnhancePromptClick() {
             promptInput.value = newText;
             debouncedSavePrefs(); // Auto-save the new description
         } else {
-            // Use existing error display to show a message if response is empty
             showError("The AI couldn't enhance the description. Please try again.");
         }
     } catch (error) {
@@ -869,7 +997,6 @@ async function handleEnhancePromptClick() {
     } finally {
         isEnhancing = false;
         enhancePromptBtn.classList.remove('loading');
-        // Re-enable button only if there's still text
         enhancePromptBtn.disabled = !promptInput.value.trim();
     }
 }
@@ -1115,6 +1242,11 @@ function parseAndShowError(error: unknown, targetErrorEl?: HTMLDivElement) {
 
 async function handleGenerateClick() {
     if (isGenerating) return;
+    if (!currentUser) {
+        showError('Please log in to generate designs.');
+        openLoginModal();
+        return;
+    }
 
     const prompt = promptInput?.value.trim();
     if (!prompt) {
@@ -1124,7 +1256,6 @@ async function handleGenerateClick() {
     
     const isLogoRequest = selectedSize === 'logo';
 
-    // A logo is required for flyers, but not when generating a logo.
     if (!isLogoRequest && !logoDataUrl) {
         showError('Please upload and apply a logo to generate a flyer.');
         return;
@@ -1135,8 +1266,6 @@ async function handleGenerateClick() {
 
     try {
         const parts: ({ text: string } | { inlineData: { data: string, mimeType: string } })[] = [];
-        
-        // --- Build individual instructions ---
         
         const companyName = companyNameInput?.value.trim();
         const contactDetails = contactDetailsInput?.value.trim();
@@ -1176,7 +1305,6 @@ async function handleGenerateClick() {
             textEffectInstruction = Array.from(selectedTextEffects).join(', ');
         }
         
-        // --- Assemble the final, structured prompt ---
         let fullPrompt = '';
 
         if (isLogoRequest) {
@@ -1201,7 +1329,6 @@ ${textContent}
 - **Background:** The background should be clean and simple (e.g., solid white, transparent, or a very subtle gradient) to ensure the logo is the main focus.
 `;
         } else {
-            // This is a flyer request, use the detailed flyer prompt
             let layoutInstruction = '';
             switch (selectedLayout) {
                 case 'text-focus': layoutInstruction = 'A text-focused layout where typography is the dominant visual element.'; break;
@@ -1255,7 +1382,6 @@ ${textContentInstruction}
 `;
         }
         
-        // Add uploaded logo for flyer requests, but not for logo generation requests.
         if (!isLogoRequest && logoDataUrl) {
             const logoBase64 = logoDataUrl.split(',')[1];
             parts.push({
@@ -1266,7 +1392,6 @@ ${textContentInstruction}
             });
         }
 
-        // Add prompt
         parts.push({ text: fullPrompt.trim() });
 
         const response = await ai.models.generateContent({
@@ -1305,7 +1430,6 @@ ${textContentInstruction}
 async function handleDownloadClick(event: MouseEvent) {
     event.preventDefault();
 
-    // Prevent multiple clicks if download is already in progress
     if (downloadBtn.classList.contains('disabled')) {
         return;
     }
@@ -1313,7 +1437,6 @@ async function handleDownloadClick(event: MouseEvent) {
     const format = formatSelect.value;
     const dataUrl = flyerOutput.src;
     
-    // Determine the type of design for the filename
     const designType = selectedSize === 'logo' ? 'logo' : selectedSize.includes('banner') ? 'banner' : 'design';
     const fileName = `${designType}-design.${format}`;
 
@@ -1322,7 +1445,6 @@ async function handleDownloadClick(event: MouseEvent) {
         return;
     }
     
-    // Set downloading state
     const originalButtonText = downloadBtn.textContent;
     downloadBtn.textContent = 'Preparing...';
     downloadBtn.classList.add('disabled');
@@ -1330,7 +1452,6 @@ async function handleDownloadClick(event: MouseEvent) {
     try {
         let finalDataUrl = dataUrl;
 
-        // If JPG is selected, convert the PNG source to JPG
         if (format === 'jpg') {
             finalDataUrl = await new Promise((resolve, reject) => {
                 const img = new Image();
@@ -1342,11 +1463,9 @@ async function handleDownloadClick(event: MouseEvent) {
                     if (!ctx) {
                         return reject(new Error('Could not get canvas context'));
                     }
-                    // Fill background with white. PNGs can have transparency, which becomes black in JPGs.
                     ctx.fillStyle = '#FFFFFF';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.drawImage(img, 0, 0);
-                    // Get JPG data URL with 90% quality
                     resolve(canvas.toDataURL('image/jpeg', 0.9));
                 };
                 img.onerror = () => reject(new Error('Failed to load image for conversion.'));
@@ -1354,33 +1473,26 @@ async function handleDownloadClick(event: MouseEvent) {
             });
         }
 
-        // Convert the final data URL (either original PNG or new JPG) to a blob
         const response = await fetch(finalDataUrl);
         const blob = await response.blob();
         const objectUrl = URL.createObjectURL(blob);
 
-        // Create a temporary link to trigger the download
         const link = document.createElement('a');
         link.href = objectUrl;
         link.download = fileName;
         
-        // This is the key fix: ensure the link is part of the DOM
-        // for the click event to be reliably dispatched in all environments.
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
         
-        // Clean up the DOM
         document.body.removeChild(link);
         
-        // Delay revoking the object URL to ensure the download has time to start
         setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
         
     } catch (error) {
         console.error("Download failed:", error);
         showError("Sorry, the download could not be completed.");
     } finally {
-        // Reset button state
         downloadBtn.textContent = originalButtonText;
         downloadBtn.classList.remove('disabled');
     }
@@ -1412,7 +1524,6 @@ function openShareModal(context: 'design' | 'studio') {
         prompt = promptInput.value;
     } else { // context === 'studio'
         imageDataUrl = studioCurrentImageSrc;
-        // In studio, prefer the generation prompt, fallback to AI edit prompt
         prompt = imagePromptInput.value || aiEditPromptInput.value;
     }
 
@@ -1427,7 +1538,6 @@ function openShareModal(context: 'design' | 'studio') {
     shareImagePreview.src = imageDataUrl;
     shareCaptionInput.value = '';
     
-    // Disable caption generation if there's no prompt context
     const genCaptionBtnSpan = generateCaptionBtn.querySelector('span');
     if (genCaptionBtnSpan) genCaptionBtnSpan.textContent = 'Generate Caption';
     generateCaptionBtn.disabled = !shareContextPrompt?.trim();
@@ -1469,7 +1579,6 @@ async function handleGenerateCaptionClick() {
         isGeneratingCaption = false;
         generateCaptionBtn.classList.remove('loading');
         if (genCaptionBtnSpan) genCaptionBtnSpan.textContent = 'Generate Caption';
-        // Re-enable if there is still context
         generateCaptionBtn.disabled = !shareContextPrompt;
     }
 }
@@ -1480,7 +1589,6 @@ async function handleShareNowClick() {
         return;
     }
 
-    // Check for Web Share API support
     if (!navigator.share) {
         alert("Your browser doesn't support the Web Share API. Please download the image to share it manually.");
         return;
@@ -1501,7 +1609,6 @@ async function handleShareNowClick() {
         title: 'My AI-Generated Design'
     };
 
-    // Check if the browser can share this data
     if (!navigator.canShare(shareData)) {
         alert("Your browser cannot share this type of file.");
         return;
@@ -1532,16 +1639,13 @@ function updateUndoRedoButtons() {
  * Resets all manual filter adjustments to their default state.
  */
 function resetAllImageFilters() {
-    // Reset state object
     studioImageFilters = { brightness: 100, contrast: 100, saturate: 100, blur: 0 };
     
-    // Reset slider UI
     brightnessSlider.value = '100';
     contrastSlider.value = '100';
     saturateSlider.value = '100';
     blurSlider.value = '0';
 
-    // Apply the reset filters to the image
     applyStudioImageFilters();
 }
 
@@ -1553,10 +1657,8 @@ function renderCurrentImageFromHistory() {
     studioCurrentImageSrc = imageDataUrl;
     studioImageOutput.src = imageDataUrl;
     
-    // Reset manual adjustments when history changes
     resetAllImageFilters();
     
-    // Wait for the new image to load to set canvas size
     studioImageOutput.onload = () => {
         studioTextCanvas.width = studioImageOutput.naturalWidth;
         studioTextCanvas.height = studioImageOutput.naturalHeight;
@@ -1567,7 +1669,6 @@ function renderCurrentImageFromHistory() {
 }
 
 function addHistoryState(imageDataUrl: string) {
-    // If we are not at the end of the history, slice it
     if (studioHistoryIndex < studioImageHistory.length - 1) {
         studioImageHistory = studioImageHistory.slice(0, studioHistoryIndex + 1);
     }
@@ -1600,7 +1701,6 @@ function handleStudioTabSwitch(targetTab: 'edit' | 'generate') {
         studioEditPanel.classList.add('active');
         studioGeneratePanel.classList.remove('active');
 
-        // Check if an image is active to decide what to show in edit panel
         if (studioCurrentImageSrc) {
             studioEditControls.classList.remove('hidden');
             studioImageUploadContainer.classList.add('hidden');
@@ -1619,7 +1719,6 @@ function handleStudioTabSwitch(targetTab: 'edit' | 'generate') {
 function setActiveStudioImage(src: string | null) {
     if (src) {
         studioCurrentImageSrc = src;
-        // Reset history for the newly selected image
         studioImageHistory = [src];
         studioHistoryIndex = 0;
         
@@ -1627,19 +1726,16 @@ function setActiveStudioImage(src: string | null) {
         studioOutputPlaceholder.classList.add('hidden');
         studioDownloadControls.classList.remove('hidden');
         
-        // Show edit controls, hide upload prompt
         studioEditControls.classList.remove('hidden');
         studioImageUploadContainer.classList.add('hidden');
 
         renderCurrentImageFromHistory();
     } else {
-        // No image is selected, hide everything
         studioCurrentImageSrc = null;
         studioResultContainer.classList.add('hidden');
         studioOutputPlaceholder.classList.remove('hidden');
         studioDownloadControls.classList.add('hidden');
 
-        // Hide edit controls, show upload prompt
         studioEditControls.classList.add('hidden');
         studioImageUploadContainer.classList.remove('hidden');
     }
@@ -1657,7 +1753,6 @@ function handleStudioImageUpload(files: FileList | null) {
         reader.onload = (e) => {
             const imageDataUrl = e.target?.result as string;
             setActiveStudioImage(imageDataUrl);
-            // Switch to edit tab automatically after upload
             handleStudioTabSwitch('edit');
         };
         reader.readAsDataURL(file);
@@ -1675,7 +1770,6 @@ function renderTextOnCanvas() {
     const ctx = studioTextCanvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear canvas before drawing
     ctx.clearRect(0, 0, studioTextCanvas.width, studioTextCanvas.height);
 
     if (!textOverlayState.text) {
@@ -1685,13 +1779,11 @@ function renderTextOnCanvas() {
     
     textStylePanel.classList.remove('hidden');
 
-    // Apply styles
     const fontStyle = textOverlayState.isItalic ? 'italic' : 'normal';
     const fontWeight = textOverlayState.isBold ? 'bold' : 'normal';
     ctx.font = `${fontStyle} ${fontWeight} ${textOverlayState.fontSize}px ${textOverlayState.fontFamily}`;
     ctx.fillStyle = textOverlayState.color;
 
-    // Apply position
     const { position } = textOverlayState;
     if (position.includes('left')) {
         ctx.textAlign = 'left';
@@ -1709,33 +1801,27 @@ function renderTextOnCanvas() {
         ctx.textBaseline = 'bottom';
     }
     
-    // Calculate coordinates
-    const padding = 20; // Padding from the edges
+    const padding = 20;
     let x = 0;
     let y = 0;
     
-    // Horizontal
     if (ctx.textAlign === 'left') x = padding;
     if (ctx.textAlign === 'center') x = studioTextCanvas.width / 2;
     if (ctx.textAlign === 'right') x = studioTextCanvas.width - padding;
 
-    // Vertical
     if (ctx.textBaseline === 'top') y = padding;
     if (ctx.textBaseline === 'middle') y = studioTextCanvas.height / 2;
     if (ctx.textBaseline === 'bottom') y = studioTextCanvas.height - padding;
     
-    // Add a simple shadow for better visibility
     ctx.shadowColor = 'rgba(0,0,0,0.7)';
     ctx.shadowBlur = 10;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
 
-    // Draw text line by line
     const lines = textOverlayState.text.split('\n');
     const lineHeight = textOverlayState.fontSize * 1.2;
     let startY = y;
     
-    // Adjust starting Y position for multiline text based on baseline
     if(ctx.textBaseline === 'middle') {
         startY -= (lines.length - 1) * lineHeight / 2;
     } else if (ctx.textBaseline === 'bottom') {
@@ -1813,7 +1899,7 @@ async function handleApplyAiEditClick() {
     applyAiEditBtn.classList.add('loading');
     studioLoader.classList.remove('hidden');
     studioLoaderText.textContent = 'Applying AI edit...';
-    studioResultContainer.classList.add('hidden'); // Hide current result while loading
+    studioResultContainer.classList.add('hidden');
     studioErrorMessage.classList.add('hidden');
 
     try {
@@ -1857,7 +1943,7 @@ async function handleApplyAiEditClick() {
         applyAiEditBtn.disabled = false;
         applyAiEditBtn.classList.remove('loading');
         studioLoader.classList.add('hidden');
-        studioResultContainer.classList.remove('hidden'); // Show result container again
+        studioResultContainer.classList.remove('hidden');
     }
 }
 
@@ -1899,7 +1985,6 @@ function updateImageSizeUI() {
     customWidthInput.value = String(width);
     customHeightInput.value = String(height);
 
-    // Check if current custom dimensions match a preset and select it
     let matchedPreset = false;
     sizePresetChips.forEach(chip => {
         const presetW = parseInt(chip.dataset.width || '0');
@@ -1909,7 +1994,6 @@ function updateImageSizeUI() {
         if (isMatch) matchedPreset = true;
     });
 
-    // If no preset matches, deselect all
     if (!matchedPreset) {
         sizePresetChips.forEach(chip => chip.classList.remove('selected'));
     }
@@ -1935,7 +2019,6 @@ function handleCustomDimensionInput(e: Event) {
     const isWidth = target.id === 'custom-width-input';
     let value = parseInt(target.value);
 
-    // Clamp values
     if (value < 256) value = 256;
     if (value > 2048) value = 2048;
     target.value = String(value);
@@ -1971,11 +2054,11 @@ function handleAspectRatioLockToggle() {
 function getClosestAspectRatio(width: number, height: number): '1:1' | '16:9' | '9:16' | '4:3' | '3:4' {
     const ratio = width / height;
     const supportedRatios = {
-        '16:9': 16/9, // ~1.77
-        '4:3': 4/3,   // ~1.33
+        '16:9': 16/9,
+        '4:3': 4/3,
         '1:1': 1,
-        '3:4': 3/4,   // 0.75
-        '9:16': 9/16, // ~0.56
+        '3:4': 3/4,
+        '9:16': 9/16,
     };
 
     let closest = '1:1' as keyof typeof supportedRatios;
@@ -1996,6 +2079,11 @@ function getClosestAspectRatio(width: number, height: number): '1:1' | '16:9' | 
 
 async function handleGenerateImageClick() {
     if (isGeneratingImage) return;
+    if (!currentUser) {
+        showError('Please log in to generate images.', studioErrorMessage);
+        openLoginModal();
+        return;
+    }
 
     const prompt = imagePromptInput.value.trim();
     if (!prompt) {
@@ -2036,7 +2124,6 @@ async function handleGenerateImageClick() {
             
             setActiveStudioImage(newImageDataUrl);
             
-            // Switch to the edit tab to show the new image and controls
             handleStudioTabSwitch('edit');
 
         } else {
@@ -2069,7 +2156,7 @@ async function handleExportImageClick(event: MouseEvent) {
 
     try {
         const image = new Image();
-        image.crossOrigin = 'anonymous'; // Important for cross-origin data
+        image.crossOrigin = 'anonymous';
         
         await new Promise((resolve, reject) => {
             image.onload = resolve;
@@ -2083,18 +2170,14 @@ async function handleExportImageClick(event: MouseEvent) {
         const ctx = canvas.getContext('2d');
         if (!ctx) throw new Error("Could not create canvas context.");
 
-        // Apply filters from the image element
         ctx.filter = studioImageOutput.style.filter;
         ctx.drawImage(image, 0, 0);
 
-        // Apply text overlay by drawing the text canvas on top
-        // This ensures text is not affected by filters
         ctx.filter = 'none'; 
         ctx.drawImage(studioTextCanvas, 0, 0);
         
         let finalDataUrl = canvas.toDataURL(`image/${format}`, 0.9);
 
-        // If JPG, we need to handle transparency by drawing on a white background first
         if (format === 'jpg') {
              const jpgCanvas = document.createElement('canvas');
              jpgCanvas.width = image.naturalWidth;
@@ -2106,7 +2189,6 @@ async function handleExportImageClick(event: MouseEvent) {
              finalDataUrl = jpgCanvas.toDataURL('image/jpeg', 0.9);
         }
         
-        // Trigger download
         const link = document.createElement('a');
         link.href = finalDataUrl;
         link.download = fileName;
@@ -2125,46 +2207,39 @@ async function handleExportImageClick(event: MouseEvent) {
 
 // --- SOCIAL MEDIA MANAGER FUNCTIONS ---
 
-// --- Business Management ---
-function saveSocialPrefs() {
-    socialTopic = socialTopicInput.value;
-    socialTone = socialToneSelect.value;
-    const prefs = {
-        businesses,
-        scheduledPosts,
-        selectedBusinessId,
-        socialTopic,
-        socialTone,
-        selectedPlatforms: Array.from(selectedPlatforms)
-    };
-    localStorage.setItem(SOCIAL_PREFERENCES_KEY, JSON.stringify(prefs));
-}
+async function loadSocialData() {
+    if (!currentUser) {
+        businesses = [];
+        scheduledPosts = [];
+        selectedBusinessId = null;
+        renderBusinessSelect();
+        renderScheduledPosts();
+        renderSocialPlatforms();
+        return;
+    }
 
-function loadSocialPrefs() {
-    const prefsString = localStorage.getItem(SOCIAL_PREFERENCES_KEY);
-    if (prefsString) {
-        const prefs = JSON.parse(prefsString);
-        businesses = prefs.businesses || [];
-        scheduledPosts = (prefs.scheduledPosts || []).map((p: any) => ({...p, scheduleTime: new Date(p.scheduleTime)}));
-        selectedBusinessId = prefs.selectedBusinessId || null;
-        socialTopic = prefs.socialTopic || '';
-        socialTone = prefs.socialTone || 'Professional';
-        selectedPlatforms = new Set(prefs.selectedPlatforms || []);
+    try {
+        const [loadedBusinesses, loadedPosts, prefs] = await Promise.all([
+            apiFetch('/api/businesses'),
+            apiFetch('/api/posts/scheduled'),
+            apiFetch('/api/users/me/preferences') // Also get selected business ID
+        ]);
+
+        businesses = loadedBusinesses;
+        scheduledPosts = (loadedPosts || []).map((p: any) => ({...p, scheduleTime: new Date(p.scheduleTime)}));
+        
+        selectedBusinessId = prefs?.social?.selectedBusinessId || null;
 
         if (!selectedBusinessId && businesses.length > 0) {
             selectedBusinessId = businesses[0].id;
         }
 
-        socialTopicInput.value = socialTopic;
-        socialToneSelect.value = socialTone;
-    } else {
-        // Add default if none exist
-        businesses = [{ id: 1, name: 'Default Business', socials: {} }];
-        selectedBusinessId = 1;
+        renderBusinessSelect();
+        renderScheduledPosts();
+        renderSocialPlatforms();
+    } catch (error) {
+        showError("Could not load your business and social media data.", socialErrorMessage);
     }
-    renderBusinessSelect();
-    renderScheduledPosts();
-    renderSocialPlatforms();
 }
 
 function handleSocialTabSwitch(targetTab: 'create' | 'scheduled') {
@@ -2189,7 +2264,6 @@ function renderScheduledPosts() {
         return;
     }
 
-    // Sort posts by date (most recent first)
     const sortedPosts = [...scheduledPosts].sort((a, b) => b.scheduleTime.getTime() - a.scheduleTime.getTime());
 
     sortedPosts.forEach((post) => {
@@ -2211,11 +2285,17 @@ function renderScheduledPosts() {
         `;
 
         const deleteBtn = postEl.querySelector('.delete-schedule-btn');
-        deleteBtn?.addEventListener('click', () => {
-            // Filter out the post to delete by object reference
-            scheduledPosts = scheduledPosts.filter(p => p !== post);
-            debouncedSaveSocialPrefs();
-            renderScheduledPosts(); // Re-render the list
+        deleteBtn?.addEventListener('click', async (e) => {
+            const btn = e.currentTarget as HTMLButtonElement;
+            btn.disabled = true;
+            try {
+                await apiFetch(`/api/posts/scheduled/${post.id}`, { method: 'DELETE' });
+                scheduledPosts = scheduledPosts.filter(p => p.id !== post.id);
+                renderScheduledPosts();
+            } catch (error) {
+                showError("Failed to delete scheduled post.", socialErrorMessage);
+                btn.disabled = false;
+            }
         });
         
         scheduledPostsContainer.appendChild(postEl);
@@ -2245,7 +2325,7 @@ function renderSocialPlatforms() {
             } else {
                 selectedPlatforms.add(platform.key);
             }
-            renderSocialPlatforms(); // Re-render to update styles for all chips
+            renderSocialPlatforms();
             debouncedSaveSocialPrefs();
         });
         socialPlatformsContainer.appendChild(platformEl);
@@ -2298,7 +2378,6 @@ function renderBusinessManagerList() {
         businessListContainer.appendChild(item);
     });
 
-    // Add event listeners after rendering
     businessListContainer.querySelectorAll('.edit-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleEditBusinessClick(parseInt((e.currentTarget as HTMLElement).dataset.id!)));
     });
@@ -2310,6 +2389,11 @@ function renderBusinessManagerList() {
 function resetBusinessForm() {
     businessForm.reset();
     businessIdInput.value = '';
+}
+
+function handleCancelBusinessEdit() {
+    resetBusinessForm();
+    closeBusinessManagerModal();
 }
 
 function handleEditBusinessClick(id: number) {
@@ -2326,19 +2410,24 @@ function handleEditBusinessClick(id: number) {
     }
 }
 
-function handleDeleteBusinessClick(id: number) {
+async function handleDeleteBusinessClick(id: number) {
     if (confirm('Are you sure you want to delete this business?')) {
-        businesses = businesses.filter(b => b.id !== id);
-        if (selectedBusinessId === id) {
-            selectedBusinessId = businesses.length > 0 ? businesses[0].id : null;
+        try {
+            await apiFetch(`/api/businesses/${id}`, { method: 'DELETE' });
+            businesses = businesses.filter(b => b.id !== id);
+            if (selectedBusinessId === id) {
+                selectedBusinessId = businesses.length > 0 ? businesses[0].id : null;
+            }
+            debouncedSaveSocialPrefs();
+            renderBusinessSelect();
+            renderBusinessManagerList();
+        } catch (error) {
+            showError("Failed to delete business.", socialErrorMessage);
         }
-        debouncedSaveSocialPrefs();
-        renderBusinessSelect();
-        renderBusinessManagerList();
     }
 }
 
-function handleBusinessFormSubmit(event: Event) {
+async function handleBusinessFormSubmit(event: Event) {
     event.preventDefault();
     const id = parseInt(businessIdInput.value);
     const businessData = {
@@ -2353,26 +2442,33 @@ function handleBusinessFormSubmit(event: Event) {
         }
     };
 
-    if (id) { // Editing existing
-        const index = businesses.findIndex(b => b.id === id);
-        if (index > -1) {
-            businesses[index] = { ...businesses[index], ...businessData };
-        }
-    } else { // Adding new
-        const newId = businesses.length > 0 ? Math.max(...businesses.map(b => b.id)) + 1 : 1;
-        businesses.push({ id: newId, ...businessData });
-        selectedBusinessId = newId;
-    }
+    const submitBtn = businessForm.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitBtn.disabled = true;
+    const originalText = submitBtn.textContent;
+    submitBtn.textContent = 'Saving...';
 
-    debouncedSaveSocialPrefs();
-    renderBusinessSelect();
-    renderBusinessManagerList();
-    resetBusinessForm();
+    try {
+        if (id) {
+            // Update existing business
+            await apiFetch(`/api/businesses/${id}`, { method: 'PUT', body: JSON.stringify(businessData) });
+        } else {
+            // Create new business
+            await apiFetch('/api/businesses', { method: 'POST', body: JSON.stringify(businessData) });
+        }
+        
+        await loadSocialData();
+        resetBusinessForm();
+        closeBusinessManagerModal();
+    } catch (error) {
+        showError("Failed to save business.", socialErrorMessage);
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalText;
+    }
 }
 
 function handleSelectAllPlatforms() {
     const allPlatformKeys = platforms.map(p => p.key);
-    // If all are already selected, deselect all. Otherwise, select all.
     const allSelected = allPlatformKeys.every(key => selectedPlatforms.has(key));
 
     if (allSelected) {
@@ -2505,7 +2601,7 @@ function renderGeneratedPosts() {
     socialScheduleControls.classList.remove('hidden');
 }
 
-function handleSchedulePosts() {
+async function handleSchedulePosts() {
     const scheduleTime = scheduleDateInput.value;
     if (!scheduleTime) {
         showError('Please select a date and time to schedule.', socialErrorMessage);
@@ -2517,23 +2613,34 @@ function handleSchedulePosts() {
     }
 
     const newScheduledPosts = generatedSocialContent.map(post => ({
-        ...post,
-        scheduleTime: new Date(scheduleTime),
-        id: Date.now() + Math.random() // simple unique id
+        platform: post.platform,
+        text: post.text,
+        scheduleTime: new Date(scheduleTime).toISOString()
     }));
 
-    scheduledPosts.push(...newScheduledPosts);
-    debouncedSaveSocialPrefs();
-    renderScheduledPosts();
-    
-    // Switch to scheduled tab to show the result
-    handleSocialTabSwitch('scheduled');
-    
-    // Clear generated content
-    generatedSocialContent = [];
-    socialResultsContainer.innerHTML = '';
-    socialScheduleControls.classList.add('hidden');
-    socialOutputPlaceholder.classList.remove('hidden');
+    schedulePostsBtn.disabled = true;
+    schedulePostsBtn.classList.add('loading');
+
+    try {
+        await apiFetch('/api/posts/scheduled', {
+            method: 'POST',
+            body: JSON.stringify(newScheduledPosts)
+        });
+
+        await loadSocialData(); // Reload all data
+        
+        handleSocialTabSwitch('scheduled');
+        
+        generatedSocialContent = [];
+        socialResultsContainer.innerHTML = '';
+        socialScheduleControls.classList.add('hidden');
+        socialOutputPlaceholder.classList.remove('hidden');
+    } catch(error) {
+        showError("Failed to schedule posts.", socialErrorMessage);
+    } finally {
+        schedulePostsBtn.disabled = false;
+        schedulePostsBtn.classList.remove('loading');
+    }
 }
 
 async function handleSuggestTime() {
@@ -2559,7 +2666,6 @@ async function handleSuggestTime() {
 
         const suggestedTime = response.text.trim();
         
-        // Basic validation for format YYYY-MM-DDTHH:MM
         if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(suggestedTime)) {
             scheduleDateInput.value = suggestedTime;
         } else {
@@ -2604,12 +2710,10 @@ async function handleGenerateBrainstormIdeas() {
         let fullResponseText = '';
         for await (const chunk of response) {
             fullResponseText += chunk.text;
-            // A simple way to render ideas as they come in
             const ideas = fullResponseText.split(/\n\d\.\s/).filter(idea => idea.trim());
             brainstormResultsContainer.innerHTML = ideas.map(idea => `<div class="brainstorm-idea">${idea.trim()}</div>`).join('');
         }
         
-        // Add click listeners to the generated ideas
         brainstormResultsContainer.querySelectorAll('.brainstorm-idea').forEach(ideaEl => {
             ideaEl.addEventListener('click', () => {
                 socialTopicInput.value = ideaEl.textContent || '';
@@ -2656,7 +2760,6 @@ async function handleGenerateReplies() {
             contents: prompt,
         });
 
-        // Simple parsing: split by newlines and filter out empty ones
         const replies = response.text.split('\n').map(r => r.replace(/^\d\.\s*/, '').trim()).filter(r => r);
         
         replyResultsContainer.innerHTML = replies.map(reply => `<div class="generated-reply">${reply}</div>`).join('');
@@ -2683,7 +2786,6 @@ function openRefineModal() {
     if (!postToRefine) return;
     refineOriginalText.textContent = postToRefine.text;
     refineCustomInstruction.value = '';
-    // Reset selections
     refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => chip.classList.remove('selected'));
     refinePostModal.classList.remove('hidden');
 }
@@ -2691,7 +2793,6 @@ function openRefineModal() {
 async function handleRefinePost() {
     if (isRefiningPost || !postToRefine) return;
 
-    // FIX: `querySelector` returns `Element | null`, which lacks a `dataset` property. Cast to `HTMLElement | null` to access `dataset`.
     const selectedAction = refineActionsContainer.querySelector('.style-chip.selected') as HTMLElement | null;
     const instruction = selectedAction?.dataset.instruction || refineCustomInstruction.value.trim();
 
@@ -2714,11 +2815,10 @@ async function handleRefinePost() {
 
         const newText = response.text.trim();
         if (newText) {
-            // Find the post in the generated content and update it
             const postIndex = generatedSocialContent.findIndex(p => p === postToRefine);
             if (postIndex > -1) {
                 generatedSocialContent[postIndex].text = newText;
-                renderGeneratedPosts(); // Re-render all posts to show the change
+                renderGeneratedPosts();
             }
             refinePostModal.classList.add('hidden');
         } else {
@@ -2736,9 +2836,14 @@ async function handleRefinePost() {
 }
 
 
-// --- AUTH FUNCTIONS (Simplified stubs for now) ---
-function openLoginModal() { loginModal.classList.remove('hidden'); }
+// --- AUTH FUNCTIONS ---
+function openLoginModal() { 
+    loginErrorMessage.classList.add('hidden');
+    signupErrorMessage.classList.add('hidden');
+    loginModal.classList.remove('hidden'); 
+}
 function closeLoginModal() { loginModal.classList.add('hidden'); }
+
 function switchAuthTab(tab: 'login' | 'signup') {
     if (tab === 'login') {
         loginTabBtn.classList.add('active');
@@ -2753,9 +2858,102 @@ function switchAuthTab(tab: 'login' | 'signup') {
     }
 }
 
+function updateUIAfterLogin(user: User) {
+    currentUser = user;
+    loginBtn.classList.add('hidden');
+    userDisplay.classList.remove('hidden');
+    userNameSpan.textContent = user.name;
+    if (user.role === 'admin') {
+        manageUsersBtn.classList.remove('hidden');
+    } else {
+        manageUsersBtn.classList.add('hidden');
+    }
+    closeLoginModal();
+    // Load user-specific data
+    loadUserPreferences();
+    loadSocialData();
+}
+
+async function handleLogin(event: Event) {
+    event.preventDefault();
+    loginErrorMessage.classList.add('hidden');
+    const email = loginEmailInput.value;
+    const password = loginPasswordInput.value;
+    const submitBtn = loginForm.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitBtn.disabled = true;
+
+    try {
+        // In a real app, the backend returns a JWT token
+        // We'll simulate this by just calling the /me endpoint
+        localStorage.setItem(AUTH_TOKEN_KEY, 'fake-token-for-demo');
+        const user = await apiFetch('/api/users/me');
+        updateUIAfterLogin(user);
+    } catch(error) {
+        localStorage.removeItem(AUTH_TOKEN_KEY);
+        loginErrorMessage.textContent = "Invalid email or password.";
+        loginErrorMessage.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
+
+async function handleSignup(event: Event) {
+    event.preventDefault();
+    signupErrorMessage.classList.add('hidden');
+    const name = signupNameInput.value;
+    const email = signupEmailInput.value;
+    const password = signupPasswordInput.value;
+    const submitBtn = signupForm.querySelector('button[type="submit"]') as HTMLButtonElement;
+    submitBtn.disabled = true;
+
+    try {
+        await apiFetch('/api/auth/signup', {
+            method: 'POST',
+            body: JSON.stringify({ name, email, password })
+        });
+        // After signup, automatically log the user in
+        localStorage.setItem(AUTH_TOKEN_KEY, 'fake-token-for-demo'); // Simulate getting token
+        const user = await apiFetch('/api/users/me');
+        updateUIAfterLogin(user);
+    } catch(error) {
+        signupErrorMessage.textContent = "Could not create account. Please try again.";
+        signupErrorMessage.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+    }
+}
+
+async function checkAuthStatus() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (token) {
+        try {
+            const user = await apiFetch('/api/users/me');
+            updateUIAfterLogin(user);
+        } catch (error) {
+            // Token is invalid or expired
+            handleLogout();
+        }
+    } else {
+        // Not logged in, load default non-user state
+        loadUserPreferences();
+        loadSocialData();
+    }
+}
+
+function handleLogout() {
+    currentUser = null;
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    loginBtn.classList.remove('hidden');
+    userDisplay.classList.add('hidden');
+    // Clear user-specific data and reload defaults
+    handleClearPrefs();
+    loadSocialData();
+    // More resets might be needed for other parts of the app
+}
+
 // --- INITIALIZATION ---
 
-function initialize() {
+async function initialize() {
     // -- App Shell --
     themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
@@ -2764,7 +2962,35 @@ function initialize() {
     designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
     imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
     socialMediaManagerPage = document.getElementById('social-media-manager-page') as HTMLDivElement;
+    
+    // -- Auth Elements --
+    authControls = document.getElementById('auth-controls') as HTMLDivElement;
+    loginBtn = document.getElementById('login-btn') as HTMLButtonElement;
+    userDisplay = document.getElementById('user-display') as HTMLDivElement;
+    userNameSpan = document.getElementById('user-name') as HTMLSpanElement;
+    userVerificationNotice = document.getElementById('user-verification-notice') as HTMLSpanElement;
+    manageUsersBtn = document.getElementById('manage-users-btn') as HTMLButtonElement;
+    logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
     loginModal = document.getElementById('login-modal') as HTMLDivElement;
+    loginTabBtn = document.getElementById('login-tab-btn') as HTMLButtonElement;
+    signupTabBtn = document.getElementById('signup-tab-btn') as HTMLButtonElement;
+    loginTabContent = document.getElementById('login-tab-content') as HTMLDivElement;
+    signupTabContent = document.getElementById('signup-tab-content') as HTMLDivElement;
+    loginForm = document.getElementById('login-form') as HTMLFormElement;
+    signupForm = document.getElementById('signup-form') as HTMLFormElement;
+    loginEmailInput = document.getElementById('login-email') as HTMLInputElement;
+    loginPasswordInput = document.getElementById('login-password') as HTMLInputElement;
+    loginErrorMessage = document.getElementById('login-error-message') as HTMLDivElement;
+    signupNameInput = document.getElementById('signup-name') as HTMLInputElement;
+    signupEmailInput = document.getElementById('signup-email') as HTMLInputElement;
+    signupPasswordInput = document.getElementById('signup-password') as HTMLInputElement;
+    signupErrorMessage = document.getElementById('signup-error-message') as HTMLDivElement;
+    forgotPasswordLink = document.getElementById('forgot-password-link') as HTMLButtonElement;
+    googleLoginBtn = document.getElementById('google-login-btn') as HTMLButtonElement;
+    googleSignupBtn = document.getElementById('google-signup-btn') as HTMLButtonElement;
+    userManagementModal = document.getElementById('user-management-modal') as HTMLDivElement;
+    userManagementList = document.getElementById('user-management-list') as HTMLDivElement;
+    closeUserManagementBtn = document.getElementById('close-user-management-btn') as HTMLButtonElement;
 
     // -- Auto-Save Indicators --
     designSaveIndicator = document.getElementById('design-save-indicator') as HTMLDivElement;
@@ -2932,26 +3158,32 @@ function initialize() {
 
 
     // --- SETUP DEBOUNCED SAVERS ---
-    debouncedSavePrefs = createDebouncedSaver(savePrefs);
-    debouncedSaveStudioPrefs = createDebouncedSaver(saveStudioPrefs);
-    debouncedSaveSocialPrefs = createDebouncedSaver(saveSocialPrefs);
+    debouncedSavePrefs = createDebouncedSaver(saveUserPreferences);
+    debouncedSaveStudioPrefs = createDebouncedSaver(saveUserPreferences);
+    debouncedSaveSocialPrefs = createDebouncedSaver(saveUserPreferences);
 
     // --- ADD EVENT LISTENERS ---
-    // -- App Shell --
+    // -- App Shell & Auth --
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
-    // FIX: The variable 'tabManager' was not defined. It should be 'tabSocialManager'.
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
+    loginBtn.addEventListener('click', openLoginModal);
+    logoutBtn.addEventListener('click', handleLogout);
+    loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
+    loginTabBtn.addEventListener('click', () => switchAuthTab('login'));
+    signupTabBtn.addEventListener('click', () => switchAuthTab('signup'));
+    loginForm.addEventListener('submit', handleLogin);
+    signupForm.addEventListener('submit', handleSignup);
     
     // -- Design Generator --
+    [promptInput, companyNameInput, contactDetailsInput].forEach(el => {
+        el.addEventListener('input', debouncedSavePrefs)
+    });
     promptInput.addEventListener('input', () => {
         enhancePromptBtn.disabled = !promptInput.value.trim();
-        debouncedSavePrefs();
     });
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
-    companyNameInput.addEventListener('input', debouncedSavePrefs);
-    contactDetailsInput.addEventListener('input', debouncedSavePrefs);
     imageUploadArea.addEventListener('click', () => logoUpload.click());
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
     removeLogoBtn.addEventListener('click', handleRemoveLogo);
@@ -3039,7 +3271,7 @@ function initialize() {
     manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
     businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
     businessForm.addEventListener('submit', handleBusinessFormSubmit);
-    cancelBusinessEditBtn.addEventListener('click', resetBusinessForm);
+    cancelBusinessEditBtn.addEventListener('click', handleCancelBusinessEdit);
     businessSelect.addEventListener('change', () => {
         selectedBusinessId = parseInt(businessSelect.value);
         debouncedSaveSocialPrefs();
@@ -3068,15 +3300,14 @@ function initialize() {
 
     // --- FINAL UI SETUP ---
     loadTheme();
-    handleLoadPrefs();
-    loadStudioPrefs();
-    loadSocialPrefs();
     const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
     if (lastTab) {
         switchAppTab(lastTab);
     } else {
         switchAppTab('design');
     }
+
+    await checkAuthStatus();
 }
 
 
