@@ -21,6 +21,7 @@ let tabSocialManager: HTMLButtonElement;
 let designGeneratorPage: HTMLDivElement;
 let imageStudioPage: HTMLDivElement;
 let socialMediaManagerPage: HTMLDivElement;
+let notificationContainer: HTMLDivElement;
 // -- Auth Elements --
 let authControls: HTMLDivElement;
 let loginBtn: HTMLButtonElement;
@@ -490,6 +491,42 @@ function hideLoading() {
         loadingInterval = null;
     }
 }
+
+/**
+ * Displays a toast notification.
+ * @param message The message to display.
+ * @param type The type of notification ('success' or 'error').
+ * @param duration Duration in milliseconds before the toast fades out.
+ */
+function showNotification(message: string, type: 'success' | 'error' = 'success', duration: number = 3000) {
+    if (!notificationContainer) return;
+
+    const toast = document.createElement('div');
+    toast.className = `notification-toast ${type}`;
+
+    let iconSvg = '';
+    if (type === 'success') {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+    } else {
+        iconSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+    }
+    toast.innerHTML = `${iconSvg}<span>${message}</span>`;
+    
+    notificationContainer.appendChild(toast);
+
+    // Force reflow to enable transition
+    requestAnimationFrame(() => {
+        toast.classList.add('show');
+    });
+
+    setTimeout(() => {
+        toast.classList.remove('show');
+        toast.addEventListener('transitionend', () => {
+            toast.remove();
+        }, { once: true });
+    }, duration);
+}
+
 
 // --- UI UPDATE FUNCTIONS ---
 
@@ -1441,7 +1478,7 @@ async function handleDownloadClick(event: MouseEvent) {
     const fileName = `${designType}-design.${format}`;
 
     if (!dataUrl || !dataUrl.startsWith('data:image')) {
-        showError("No image to download.");
+        showNotification("No image to download.", "error");
         return;
     }
     
@@ -1488,10 +1525,11 @@ async function handleDownloadClick(event: MouseEvent) {
         document.body.removeChild(link);
         
         setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
+        showNotification('Download started successfully!', 'success');
         
     } catch (error) {
         console.error("Download failed:", error);
-        showError("Sorry, the download could not be completed.");
+        showNotification("Sorry, the download could not be completed.", "error");
     } finally {
         downloadBtn.textContent = originalButtonText;
         downloadBtn.classList.remove('disabled');
@@ -1625,6 +1663,57 @@ async function handleShareNowClick() {
         }
     }
 }
+
+// --- FIX START ---
+// --- AUTH MODAL FUNCTIONS ---
+
+/**
+ * Switches between the Login and Signup tabs in the authentication modal.
+ * @param targetTab The tab to activate ('login' or 'signup').
+ */
+function handleAuthTabSwitch(targetTab: 'login' | 'signup') {
+    if (!loginTabBtn || !signupTabBtn || !loginTabContent || !signupTabContent) return;
+    if (targetTab === 'login') {
+        loginTabBtn.classList.add('active');
+        signupTabBtn.classList.remove('active');
+        loginTabContent.classList.remove('hidden');
+        signupTabContent.classList.add('hidden');
+    } else { // signup
+        loginTabBtn.classList.remove('active');
+        signupTabBtn.classList.add('active');
+        loginTabContent.classList.add('hidden');
+        signupTabContent.classList.remove('hidden');
+    }
+}
+
+/**
+ * Opens the authentication modal and resets its state.
+ */
+function openLoginModal() {
+    if (!loginModal) return;
+    loginModal.classList.remove('hidden');
+    
+    // Reset any previous error states
+    if (loginErrorMessage) loginErrorMessage.classList.add('hidden');
+    if (signupErrorMessage) signupErrorMessage.classList.add('hidden');
+    
+    // Reset forms
+    if (loginForm) loginForm.reset();
+    if (signupForm) signupForm.reset();
+
+    // Default to the login tab
+    handleAuthTabSwitch('login');
+}
+
+/**
+ * Closes the authentication modal.
+ */
+function closeLoginModal() {
+    if (loginModal) {
+        loginModal.classList.add('hidden');
+    }
+}
+// --- FIX END ---
 
 
 // --- EVENT HANDLERS (Image Studio) ---
@@ -2163,7 +2252,7 @@ async function handleGenerateImageClick() {
 async function handleExportImageClick(event: MouseEvent) {
     event.preventDefault();
     if (!studioCurrentImageSrc) {
-        showError("There is no image to export.", studioErrorMessage);
+        showNotification("There is no image to export.", "error");
         return;
     }
 
@@ -2215,10 +2304,11 @@ async function handleExportImageClick(event: MouseEvent) {
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        showNotification('Image exported successfully!', 'success');
 
     } catch (error) {
         console.error("Export failed:", error);
-        showError("Sorry, the image could not be exported.", studioErrorMessage);
+        showNotification("Sorry, the image could not be exported.", "error");
     } finally {
         studioDownloadBtn.textContent = originalButtonText;
         studioDownloadBtn.classList.remove('disabled');
@@ -2463,518 +2553,39 @@ async function handleBusinessFormSubmit(event: Event) {
     };
 
     const submitBtn = businessForm.querySelector('button[type="submit"]') as HTMLButtonElement;
-    submitBtn.disabled = true;
-    const originalText = submitBtn.textContent;
-    submitBtn.textContent = 'Saving...';
+    if (submitBtn) submitBtn.disabled = true;
 
     try {
-        if (id) {
-            // Update existing business
-            await apiFetch(`/api/businesses/${id}`, { method: 'PUT', body: JSON.stringify(businessData) });
+        if (isNaN(id)) {
+            // Create new
+            const newBusiness = await apiFetch('/api/businesses', {
+                method: 'POST',
+                body: JSON.stringify(businessData)
+            });
+            businesses.push(newBusiness);
         } else {
-            // Create new business
-            await apiFetch('/api/businesses', { method: 'POST', body: JSON.stringify(businessData) });
+            // Update existing
+            await apiFetch(`/api/businesses/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(businessData)
+            });
+            const index = businesses.findIndex(b => b.id === id);
+            if (index !== -1) {
+                businesses[index] = { ...businesses[index], ...businessData, id };
+            }
         }
-        
-        await loadSocialData();
         resetBusinessForm();
-        closeBusinessManagerModal();
+        renderBusinessSelect();
+        renderBusinessManagerList();
     } catch (error) {
         showError("Failed to save business.", socialErrorMessage);
     } finally {
-        submitBtn.disabled = false;
-        submitBtn.textContent = originalText;
+        if (submitBtn) submitBtn.disabled = false;
     }
 }
-
-function handleSelectAllPlatforms() {
-    const allPlatformKeys = platforms.map(p => p.key);
-    const allSelected = allPlatformKeys.every(key => selectedPlatforms.has(key));
-
-    if (allSelected) {
-        selectedPlatforms.clear();
-    } else {
-        allPlatformKeys.forEach(key => selectedPlatforms.add(key));
-    }
-    renderSocialPlatforms();
-    debouncedSaveSocialPrefs();
-}
-
-async function handleGenerateSocialBtn() {
-    if (isGeneratingSocial) return;
-
-    const topic = socialTopicInput.value.trim();
-    if (!topic) {
-        showError('Please enter a topic for your social media posts.', socialErrorMessage);
-        return;
-    }
-    if (selectedPlatforms.size === 0) {
-        showError('Please select at least one social media platform.', socialErrorMessage);
-        return;
-    }
-
-    isGeneratingSocial = true;
-    generateSocialBtn.disabled = true;
-    generateSocialBtn.classList.add('loading');
-    socialErrorMessage.classList.add('hidden');
-    socialOutputPlaceholder.classList.add('hidden');
-    socialResultsContainer.innerHTML = '';
-    socialLoader.classList.remove('hidden');
-
-    try {
-        const selectedBusiness = businesses.find(b => b.id === selectedBusinessId);
-        let businessContext = `The business is named "${selectedBusiness?.name || 'My Business'}".`;
-        if (selectedBusiness && Object.values(selectedBusiness.socials).some(s => s)) {
-            businessContext += ` Business URLs: ${Object.entries(selectedBusiness.socials).filter(([,v]) => v).map(([k,v]) => `${k}: ${v}`).join(', ')}.`;
-        }
-
-        const platformList = Array.from(selectedPlatforms).join(', ');
-
-        const prompt = `
-            You are a social media content creation expert. Your task is to generate engaging posts for multiple platforms based on a user's topic and desired tone.
-
-            **Business Context:** ${businessContext}
-            **Topic:** "${topic}"
-            **Tone:** ${socialTone}
-            **Platforms to Generate For:** ${platformList}
-
-            For each platform, create a tailored post that adheres to its best practices (e.g., character limits, hashtag usage, style).
-            Return a JSON array where each object has "platform" (matching one of the keys: ${platforms.map(p => p.key).join(', ')}) and "text" (the generated content).
-        `;
-
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            platform: { type: Type.STRING },
-                            text: { type: Type.STRING },
-                        }
-                    }
-                }
-            },
-        });
-
-        const jsonStr = response.text.trim();
-        generatedSocialContent = JSON.parse(jsonStr);
-        renderGeneratedPosts();
-        
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-        socialOutputPlaceholder.classList.remove('hidden');
-    } finally {
-        isGeneratingSocial = false;
-        generateSocialBtn.disabled = false;
-        generateSocialBtn.classList.remove('loading');
-        socialLoader.classList.add('hidden');
-    }
-}
-
-function renderGeneratedPosts() {
-    socialResultsContainer.innerHTML = '';
-    if (generatedSocialContent.length === 0) {
-        socialScheduleControls.classList.add('hidden');
-        return;
-    }
-
-    generatedSocialContent.forEach(post => {
-        const platformInfo = platforms.find(p => p.key === post.platform);
-        if (!platformInfo) return;
-
-        const card = document.createElement('div');
-        card.className = 'social-post-card';
-        card.innerHTML = `
-            <div class="social-post-header">
-                ${platformInfo.icon}
-                <h4>${platformInfo.name}</h4>
-            </div>
-            <div class="social-post-content">
-                <p>${post.text}</p>
-            </div>
-            <div class="social-post-actions">
-                <button class="btn btn-secondary btn-sm refine-post-btn">Refine</button>
-                <button class="btn btn-secondary btn-sm copy-post-btn">Copy</button>
-            </div>
-        `;
-        
-        card.querySelector('.refine-post-btn')?.addEventListener('click', () => {
-            postToRefine = post;
-            openRefineModal();
-        });
-
-        card.querySelector('.copy-post-btn')?.addEventListener('click', (e) => {
-            navigator.clipboard.writeText(post.text);
-            const btn = e.currentTarget as HTMLButtonElement;
-            const originalText = btn.textContent;
-            btn.textContent = 'Copied!';
-            setTimeout(() => { btn.textContent = originalText; }, 1500);
-        });
-
-        socialResultsContainer.appendChild(card);
-    });
-
-    socialScheduleControls.classList.remove('hidden');
-}
-
-async function handleSchedulePosts() {
-    const scheduleTime = scheduleDateInput.value;
-    if (!scheduleTime) {
-        showError('Please select a date and time to schedule.', socialErrorMessage);
-        return;
-    }
-    if (generatedSocialContent.length === 0) {
-        showError('No posts to schedule. Please generate posts first.', socialErrorMessage);
-        return;
-    }
-
-    const newScheduledPosts = generatedSocialContent.map(post => ({
-        platform: post.platform,
-        text: post.text,
-        scheduleTime: new Date(scheduleTime).toISOString()
-    }));
-
-    schedulePostsBtn.disabled = true;
-    schedulePostsBtn.classList.add('loading');
-
-    try {
-        await apiFetch('/api/posts/scheduled', {
-            method: 'POST',
-            body: JSON.stringify(newScheduledPosts)
-        });
-
-        await loadSocialData(); // Reload all data
-        
-        handleSocialTabSwitch('scheduled');
-        
-        generatedSocialContent = [];
-        socialResultsContainer.innerHTML = '';
-        socialScheduleControls.classList.add('hidden');
-        socialOutputPlaceholder.classList.remove('hidden');
-    } catch(error) {
-        showError("Failed to schedule posts.", socialErrorMessage);
-    } finally {
-        schedulePostsBtn.disabled = false;
-        schedulePostsBtn.classList.remove('loading');
-    }
-}
-
-async function handleSuggestTime() {
-    if (isSuggestingTime) return;
-
-    const platformList = Array.from(selectedPlatforms).join(', ');
-    if (!platformList) {
-        showError("Please select at least one platform to get a time suggestion.", socialErrorMessage);
-        return;
-    }
-
-    isSuggestingTime = true;
-    suggestTimeBtn.disabled = true;
-    suggestTimeBtn.classList.add('loading');
-
-    const prompt = `Based on general best practices for social media engagement, suggest an optimal day and time to post for the following platforms: ${platformList}. Provide the single best upcoming time in ISO 8601 format (YYYY-MM-DDTHH:MM) based on the current date. For example, if it's Monday morning, you might suggest Tuesday afternoon.`;
-    
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-
-        const suggestedTime = response.text.trim();
-        
-        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(suggestedTime)) {
-            scheduleDateInput.value = suggestedTime;
-        } else {
-            showError("AI couldn't suggest a specific time, please set one manually.", socialErrorMessage);
-        }
-
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-    } finally {
-        isSuggestingTime = false;
-        suggestTimeBtn.disabled = false;
-        suggestTimeBtn.classList.remove('loading');
-    }
-}
-
-function openBrainstormModal() {
-    brainstormResultsContainer.innerHTML = '';
-    generateBrainstormIdeasBtn.classList.remove('hidden');
-    brainstormModal.classList.remove('hidden');
-}
-
-async function handleGenerateBrainstormIdeas() {
-    if (isBrainstorming) return;
-
-    isBrainstorming = true;
-    generateBrainstormIdeasBtn.disabled = true;
-    generateBrainstormIdeasBtn.classList.add('loading');
-    brainstormResultsContainer.innerHTML = '<div class="loading-spinner" style="margin: 2rem auto;"></div>';
-
-    const topic = socialTopicInput.value.trim() || "general marketing";
-    const selectedBusiness = businesses.find(b => b.id === selectedBusinessId);
-    
-    const prompt = `Brainstorm 5 creative social media post ideas related to "${topic}" for a business called "${selectedBusiness?.name || 'our company'}". The tone should be ${socialTone}. Each idea should be a short, actionable concept.`;
-
-    try {
-        const response = await ai.models.generateContentStream({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-
-        brainstormResultsContainer.innerHTML = '';
-        let fullResponseText = '';
-        for await (const chunk of response) {
-            fullResponseText += chunk.text;
-            const ideas = fullResponseText.split(/\n\d\.\s/).filter(idea => idea.trim());
-            brainstormResultsContainer.innerHTML = ideas.map(idea => `<div class="brainstorm-idea">${idea.trim()}</div>`).join('');
-        }
-        
-        brainstormResultsContainer.querySelectorAll('.brainstorm-idea').forEach(ideaEl => {
-            ideaEl.addEventListener('click', () => {
-                socialTopicInput.value = ideaEl.textContent || '';
-                brainstormModal.classList.add('hidden');
-            });
-        });
-
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-        brainstormResultsContainer.innerHTML = `<p class="error-message">Could not generate ideas.</p>`;
-    } finally {
-        isBrainstorming = false;
-        generateBrainstormIdeasBtn.disabled = false;
-        generateBrainstormIdeasBtn.classList.remove('loading');
-    }
-}
-
-function openReplyModal() {
-    replyGeneratorModal.classList.remove('hidden');
-    replyOriginalText.value = '';
-    replyResultsContainer.innerHTML = '';
-}
-
-async function handleGenerateReplies() {
-     if (isGeneratingReplies) return;
-
-    const originalText = replyOriginalText.value.trim();
-    if (!originalText) {
-        alert("Please paste the text you want to reply to.");
-        return;
-    }
-
-    isGeneratingReplies = true;
-    generateReplyBtn.disabled = true;
-    generateReplyBtn.classList.add('loading');
-    replyResultsContainer.innerHTML = '<div class="loading-spinner" style="margin: 1rem auto;"></div>';
-    
-    const tone = replyToneSelect.value;
-    const prompt = `Generate 3 distinct replies to the following social media comment/post. The desired tone for the replies is "${tone}". The original text is: "${originalText}"`;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-
-        const replies = response.text.split('\n').map(r => r.replace(/^\d\.\s*/, '').trim()).filter(r => r);
-        
-        replyResultsContainer.innerHTML = replies.map(reply => `<div class="generated-reply">${reply}</div>`).join('');
-
-        replyResultsContainer.querySelectorAll('.generated-reply').forEach(replyEl => {
-            replyEl.addEventListener('click', () => {
-                navigator.clipboard.writeText(replyEl.textContent || '');
-                replyEl.textContent = 'Copied!';
-                setTimeout(() => { replyGeneratorModal.classList.add('hidden'); }, 1000);
-            });
-        });
-
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-        replyResultsContainer.innerHTML = `<p class="error-message">Could not generate replies.</p>`;
-    } finally {
-        isGeneratingReplies = false;
-        generateReplyBtn.disabled = false;
-        generateReplyBtn.classList.remove('loading');
-    }
-}
-
-function openRefineModal() {
-    if (!postToRefine) return;
-    refineOriginalText.textContent = postToRefine.text;
-    refineCustomInstruction.value = '';
-    refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => chip.classList.remove('selected'));
-    refinePostModal.classList.remove('hidden');
-}
-
-async function handleRefinePost() {
-    if (isRefiningPost || !postToRefine) return;
-
-    const selectedAction = refineActionsContainer.querySelector('.style-chip.selected') as HTMLElement | null;
-    const instruction = selectedAction?.dataset.instruction || refineCustomInstruction.value.trim();
-
-    if (!instruction) {
-        alert("Please select an action or type a custom instruction.");
-        return;
-    }
-
-    isRefiningPost = true;
-    refineNowBtn.disabled = true;
-    refineNowBtn.classList.add('loading');
-
-    const prompt = `Refine the following social media post based on the instruction provided. Return only the refined post text.\n\n**Original Post:**\n"${postToRefine.text}"\n\n**Instruction:** ${instruction}`;
-
-    try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
-
-        const newText = response.text.trim();
-        if (newText) {
-            const postIndex = generatedSocialContent.findIndex(p => p === postToRefine);
-            if (postIndex > -1) {
-                generatedSocialContent[postIndex].text = newText;
-                renderGeneratedPosts();
-            }
-            refinePostModal.classList.add('hidden');
-        } else {
-            showError("The AI couldn't refine the post.", socialErrorMessage);
-        }
-
-    } catch (error) {
-        parseAndShowError(error, socialErrorMessage);
-    } finally {
-        isRefiningPost = false;
-        refineNowBtn.disabled = false;
-        refineNowBtn.classList.remove('loading');
-        postToRefine = null;
-    }
-}
-
-
-// --- AUTH FUNCTIONS ---
-function openLoginModal() { 
-    loginErrorMessage.classList.add('hidden');
-    signupErrorMessage.classList.add('hidden');
-    loginModal.classList.remove('hidden'); 
-}
-function closeLoginModal() { loginModal.classList.add('hidden'); }
-
-function switchAuthTab(tab: 'login' | 'signup') {
-    if (tab === 'login') {
-        loginTabBtn.classList.add('active');
-        signupTabBtn.classList.remove('active');
-        loginTabContent.classList.remove('hidden');
-        signupTabContent.classList.add('hidden');
-    } else {
-        loginTabBtn.classList.remove('active');
-        signupTabBtn.classList.add('active');
-        loginTabContent.classList.add('hidden');
-        signupTabContent.classList.remove('hidden');
-    }
-}
-
-function updateUIAfterLogin(user: User) {
-    currentUser = user;
-    loginBtn.classList.add('hidden');
-    userDisplay.classList.remove('hidden');
-    userNameSpan.textContent = user.name;
-    if (user.role === 'admin') {
-        manageUsersBtn.classList.remove('hidden');
-    } else {
-        manageUsersBtn.classList.add('hidden');
-    }
-    closeLoginModal();
-    // Load user-specific data
-    loadUserPreferences();
-    loadSocialData();
-}
-
-async function handleLogin(event: Event) {
-    event.preventDefault();
-    loginErrorMessage.classList.add('hidden');
-    const email = loginEmailInput.value;
-    const password = loginPasswordInput.value;
-    const submitBtn = loginForm.querySelector('button[type="submit"]') as HTMLButtonElement;
-    submitBtn.disabled = true;
-
-    try {
-        // In a real app, the backend returns a JWT token
-        // We'll simulate this by just calling the /me endpoint
-        localStorage.setItem(AUTH_TOKEN_KEY, 'fake-token-for-demo');
-        const user = await apiFetch('/api/users/me');
-        updateUIAfterLogin(user);
-    } catch(error) {
-        localStorage.removeItem(AUTH_TOKEN_KEY);
-        loginErrorMessage.textContent = "Invalid email or password.";
-        loginErrorMessage.classList.remove('hidden');
-    } finally {
-        submitBtn.disabled = false;
-    }
-}
-
-async function handleSignup(event: Event) {
-    event.preventDefault();
-    signupErrorMessage.classList.add('hidden');
-    const name = signupNameInput.value;
-    const email = signupEmailInput.value;
-    const password = signupPasswordInput.value;
-    const submitBtn = signupForm.querySelector('button[type="submit"]') as HTMLButtonElement;
-    submitBtn.disabled = true;
-
-    try {
-        await apiFetch('/api/auth/signup', {
-            method: 'POST',
-            body: JSON.stringify({ name, email, password })
-        });
-        // After signup, automatically log the user in
-        localStorage.setItem(AUTH_TOKEN_KEY, 'fake-token-for-demo'); // Simulate getting token
-        const user = await apiFetch('/api/users/me');
-        updateUIAfterLogin(user);
-    } catch(error) {
-        signupErrorMessage.textContent = "Could not create account. Please try again.";
-        signupErrorMessage.classList.remove('hidden');
-    } finally {
-        submitBtn.disabled = false;
-    }
-}
-
-async function checkAuthStatus() {
-    const token = localStorage.getItem(AUTH_TOKEN_KEY);
-    if (token) {
-        try {
-            const user = await apiFetch('/api/users/me');
-            updateUIAfterLogin(user);
-        } catch (error) {
-            // Token is invalid or expired
-            handleLogout();
-        }
-    } else {
-        // Not logged in, load default non-user state
-        loadUserPreferences();
-        loadSocialData();
-    }
-}
-
-function handleLogout() {
-    currentUser = null;
-    localStorage.removeItem(AUTH_TOKEN_KEY);
-    loginBtn.classList.remove('hidden');
-    userDisplay.classList.add('hidden');
-    // Clear user-specific data and reload defaults
-    handleClearPrefs();
-    loadSocialData();
-    // More resets might be needed for other parts of the app
-}
-
-// --- INITIALIZATION ---
 
 async function initialize() {
-    // -- App Shell --
+    // --- Query Selectors ---
     themeSwitcherBtn = document.getElementById('theme-switcher') as HTMLButtonElement;
     tabDesignGenerator = document.getElementById('tab-design-generator') as HTMLButtonElement;
     tabImageStudio = document.getElementById('tab-image-studio') as HTMLButtonElement;
@@ -2982,15 +2593,8 @@ async function initialize() {
     designGeneratorPage = document.getElementById('design-generator-page') as HTMLDivElement;
     imageStudioPage = document.getElementById('image-studio-page') as HTMLDivElement;
     socialMediaManagerPage = document.getElementById('social-media-manager-page') as HTMLDivElement;
-    
-    // -- Auth Elements --
-    authControls = document.getElementById('auth-controls') as HTMLDivElement;
+    notificationContainer = document.getElementById('notification-container') as HTMLDivElement;
     loginBtn = document.getElementById('login-btn') as HTMLButtonElement;
-    userDisplay = document.getElementById('user-display') as HTMLDivElement;
-    userNameSpan = document.getElementById('user-name') as HTMLSpanElement;
-    userVerificationNotice = document.getElementById('user-verification-notice') as HTMLSpanElement;
-    manageUsersBtn = document.getElementById('manage-users-btn') as HTMLButtonElement;
-    logoutBtn = document.getElementById('logout-btn') as HTMLButtonElement;
     loginModal = document.getElementById('login-modal') as HTMLDivElement;
     loginTabBtn = document.getElementById('login-tab-btn') as HTMLButtonElement;
     signupTabBtn = document.getElementById('signup-tab-btn') as HTMLButtonElement;
@@ -2998,26 +2602,11 @@ async function initialize() {
     signupTabContent = document.getElementById('signup-tab-content') as HTMLDivElement;
     loginForm = document.getElementById('login-form') as HTMLFormElement;
     signupForm = document.getElementById('signup-form') as HTMLFormElement;
-    loginEmailInput = document.getElementById('login-email') as HTMLInputElement;
-    loginPasswordInput = document.getElementById('login-password') as HTMLInputElement;
     loginErrorMessage = document.getElementById('login-error-message') as HTMLDivElement;
-    signupNameInput = document.getElementById('signup-name') as HTMLInputElement;
-    signupEmailInput = document.getElementById('signup-email') as HTMLInputElement;
-    signupPasswordInput = document.getElementById('signup-password') as HTMLInputElement;
     signupErrorMessage = document.getElementById('signup-error-message') as HTMLDivElement;
-    forgotPasswordLink = document.getElementById('forgot-password-link') as HTMLButtonElement;
-    googleLoginBtn = document.getElementById('google-login-btn') as HTMLButtonElement;
-    googleSignupBtn = document.getElementById('google-signup-btn') as HTMLButtonElement;
-    userManagementModal = document.getElementById('user-management-modal') as HTMLDivElement;
-    userManagementList = document.getElementById('user-management-list') as HTMLDivElement;
-    closeUserManagementBtn = document.getElementById('close-user-management-btn') as HTMLButtonElement;
-
-    // -- Auto-Save Indicators --
     designSaveIndicator = document.getElementById('design-save-indicator') as HTMLDivElement;
     studioSaveIndicator = document.getElementById('studio-save-indicator') as HTMLDivElement;
     socialSaveIndicator = document.getElementById('social-save-indicator') as HTMLDivElement;
-
-    // -- Design Generator --
     descriptionHeader = document.getElementById('description-header') as HTMLHeadingElement;
     promptInput = document.getElementById('prompt-input') as HTMLTextAreaElement;
     micDesignBtn = document.getElementById('mic-design-btn') as HTMLButtonElement;
@@ -3057,22 +2646,16 @@ async function initialize() {
     shareBtn = document.getElementById('share-btn') as HTMLButtonElement;
     formatSelect = document.getElementById('format-select') as HTMLSelectElement;
     errorMessage = document.getElementById('error-message') as HTMLDivElement;
-    
-    // -- Cropping Modal --
     cropModal = document.getElementById('crop-modal') as HTMLDivElement;
     imageToCrop = document.getElementById('image-to-crop') as HTMLImageElement;
     applyCropBtn = document.getElementById('apply-crop-btn') as HTMLButtonElement;
     cancelCropBtn = document.getElementById('cancel-crop-btn') as HTMLButtonElement;
-    
-    // -- Share Modal --
     shareModal = document.getElementById('share-modal') as HTMLDivElement;
     shareImagePreview = document.getElementById('share-image-preview') as HTMLImageElement;
     shareCaptionInput = document.getElementById('share-caption-input') as HTMLTextAreaElement;
     generateCaptionBtn = document.getElementById('generate-caption-btn') as HTMLButtonElement;
     shareNowBtn = document.getElementById('share-now-btn') as HTMLButtonElement;
     cancelShareBtn = document.getElementById('cancel-share-btn') as HTMLButtonElement;
-    
-    // -- Image Studio --
     studioTabEdit = document.getElementById('studio-tab-edit') as HTMLButtonElement;
     studioTabGenerate = document.getElementById('studio-tab-generate') as HTMLButtonElement;
     studioEditPanel = document.getElementById('studio-edit-panel') as HTMLDivElement;
@@ -3104,7 +2687,7 @@ async function initialize() {
     imagePromptInput = document.getElementById('image-prompt-input') as HTMLTextAreaElement;
     micGenerateImageBtn = document.getElementById('mic-generate-image-btn') as HTMLButtonElement;
     enhanceImagePromptBtn = document.getElementById('enhance-image-prompt-btn') as HTMLButtonElement;
-    styleChips = document.querySelectorAll('#studio-generate-panel .style-chip:not(.size-preset-chip)');
+    styleChips = document.querySelectorAll('.style-chip:not(.size-preset-chip)');
     sizePresetChips = document.querySelectorAll('.size-preset-chip');
     customWidthInput = document.getElementById('custom-width-input') as HTMLInputElement;
     customHeightInput = document.getElementById('custom-height-input') as HTMLInputElement;
@@ -3123,8 +2706,6 @@ async function initialize() {
     studioDownloadBtn = document.getElementById('studio-download-btn') as HTMLButtonElement;
     studioShareBtn = document.getElementById('studio-share-btn') as HTMLButtonElement;
     studioErrorMessage = document.getElementById('studio-error-message') as HTMLDivElement;
-
-    // -- Social Media Manager --
     businessSelect = document.getElementById('business-select') as HTMLSelectElement;
     manageBusinessesBtn = document.getElementById('manage-businesses-btn') as HTMLButtonElement;
     socialTopicInput = document.getElementById('social-topic-input') as HTMLTextAreaElement;
@@ -3176,156 +2757,98 @@ async function initialize() {
     cancelRefineBtn = document.getElementById('cancel-refine-btn') as HTMLButtonElement;
     refineNowBtn = document.getElementById('refine-now-btn') as HTMLButtonElement;
 
+    debouncedSavePrefs = createDebouncedSaver(saveUserPreferences, 1200);
+    debouncedSaveStudioPrefs = createDebouncedSaver(saveUserPreferences, 1200);
+    debouncedSaveSocialPrefs = createDebouncedSaver(saveUserPreferences, 1200);
 
-    // --- SETUP DEBOUNCED SAVERS ---
-    debouncedSavePrefs = createDebouncedSaver(saveUserPreferences);
-    debouncedSaveStudioPrefs = createDebouncedSaver(saveUserPreferences);
-    debouncedSaveSocialPrefs = createDebouncedSaver(saveUserPreferences);
-
-    // --- SETUP SPEECH RECOGNITION ---
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition) {
-        recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = 'en-US';
-
-        recognition.onstart = () => {
-            if (activeMic) {
-                activeMic.button.classList.add('listening');
-                activeMic.button.setAttribute('aria-label', 'Stop Listening');
-                activeMic.button.title = 'Stop Listening';
-            }
-        };
-
-        recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            if (activeMic) {
-                activeMic.input.value = transcript;
-                // Trigger input event to enable enhance buttons and auto-save
-                activeMic.input.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error('Speech recognition error:', event.error);
-            if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-                showError("Microphone access was denied. Please allow it in your browser settings.");
-            } else {
-                showError("An error occurred during speech recognition.");
-            }
-        };
-
-        recognition.onend = () => {
-            if (activeMic) {
-                activeMic.button.classList.remove('listening');
-                activeMic.button.setAttribute('aria-label', 'Use Voice to Describe');
-                activeMic.button.title = 'Use Voice';
-            }
-            isListening = false;
-            activeMic = null;
-        };
-    } else {
-        // Hide all mic buttons if the browser doesn't support the API
-        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(btn => {
-            if (btn) btn.classList.add('hidden');
-        });
-        console.warn("Speech Recognition API not supported in this browser.");
-    }
-
-    // --- ADD EVENT LISTENERS ---
-    // -- App Shell & Auth --
     themeSwitcherBtn.addEventListener('click', toggleTheme);
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
-    loginBtn.addEventListener('click', openLoginModal);
-    logoutBtn.addEventListener('click', handleLogout);
-    loginModal.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
-    loginTabBtn.addEventListener('click', () => switchAuthTab('login'));
-    signupTabBtn.addEventListener('click', () => switchAuthTab('signup'));
-    loginForm.addEventListener('submit', handleLogin);
-    signupForm.addEventListener('submit', handleSignup);
-    
-    // -- Design Generator --
-    [promptInput, companyNameInput, contactDetailsInput].forEach(el => {
-        el.addEventListener('input', debouncedSavePrefs)
-    });
-    promptInput.addEventListener('input', () => {
+
+    loginBtn?.addEventListener('click', openLoginModal);
+    loginModal?.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
+    loginTabBtn?.addEventListener('click', () => handleAuthTabSwitch('login'));
+    signupTabBtn?.addEventListener('click', () => handleAuthTabSwitch('signup'));
+
+    promptInput.addEventListener('input', () => { 
         enhancePromptBtn.disabled = !promptInput.value.trim();
+        debouncedSavePrefs(); 
     });
-    micDesignBtn.addEventListener('click', () => handleMicClick(promptInput, micDesignBtn));
+    [companyNameInput, contactDetailsInput].forEach(el => el.addEventListener('input', debouncedSavePrefs));
     enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
     imageUploadArea.addEventListener('click', () => logoUpload.click());
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
     removeLogoBtn.addEventListener('click', handleRemoveLogo);
+    applyCropBtn.addEventListener('click', handleApplyCrop);
+    cancelCropBtn.addEventListener('click', handleCancelCrop);
+    logoSizeOptions.forEach(o => o.addEventListener('click', handleLogoSizeSelection));
+    logoPositionOptions.forEach(o => o.addEventListener('click', handleLogoPositionSelection));
+    logoRotationSlider.addEventListener('input', handleLogoRotationChange);
+    logoOpacitySlider.addEventListener('input', handleLogoOpacityChange);
+    resetRotationBtn.addEventListener('click', handleResetRotation);
+    resetOpacityBtn.addEventListener('click', handleResetOpacity);
+    paletteOptions.forEach(o => o.addEventListener('click', handlePaletteSelection));
+    layoutOptions.forEach(o => o.addEventListener('click', handleLayoutSelection));
+    backgroundOptions.forEach(o => o.addEventListener('click', handleBackgroundSelection));
+    fontOptions.forEach(o => o.addEventListener('click', handleFontSelection));
+    sizeOptions.forEach(o => o.addEventListener('click', handleSizeSelection));
+    textEffectOptions.forEach(o => o.addEventListener('click', handleTextEffectSelection));
     generateBtn.addEventListener('click', handleGenerateClick);
     downloadBtn.addEventListener('click', handleDownloadClick);
     shareBtn.addEventListener('click', () => openShareModal('design'));
     clearPrefsBtn.addEventListener('click', handleClearPrefs);
-    
-    // -- Logo Customization --
-    logoSizeOptions.forEach(option => option.addEventListener('click', handleLogoSizeSelection));
-    logoPositionOptions.forEach(option => option.addEventListener('click', handleLogoPositionSelection));
-    logoRotationSlider.addEventListener('input', handleLogoRotationChange);
-    resetRotationBtn.addEventListener('click', handleResetRotation);
-    logoOpacitySlider.addEventListener('input', handleLogoOpacityChange);
-    resetOpacityBtn.addEventListener('click', handleResetOpacity);
 
-    // -- Design Style Options --
-    paletteOptions.forEach(option => option.addEventListener('click', handlePaletteSelection));
-    layoutOptions.forEach(option => option.addEventListener('click', handleLayoutSelection));
-    backgroundOptions.forEach(option => option.addEventListener('click', handleBackgroundSelection));
-    fontOptions.forEach(option => option.addEventListener('click', handleFontSelection));
-    sizeOptions.forEach(option => option.addEventListener('click', handleSizeSelection));
-    textEffectOptions.forEach(option => option.addEventListener('click', handleTextEffectSelection));
-
-    // -- Modals --
-    applyCropBtn.addEventListener('click', handleApplyCrop);
-    cancelCropBtn.addEventListener('click', handleCancelCrop);
+    shareModal.addEventListener('click', (e) => { if (e.target === shareModal) closeShareModal(); });
     generateCaptionBtn.addEventListener('click', handleGenerateCaptionClick);
     shareNowBtn.addEventListener('click', handleShareNowClick);
     cancelShareBtn.addEventListener('click', closeShareModal);
-    
-    // -- Image Studio --
+
     studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
     studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
     studioImageUploadArea.addEventListener('click', () => studioLogoUpload.click());
     studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
+    undoBtn.addEventListener('click', handleUndoClick);
+    redoBtn.addEventListener('click', handleRedoClick);
     resetFiltersBtn.addEventListener('click', resetAllImageFilters);
-    [brightnessSlider, contrastSlider, saturateSlider, blurSlider].forEach(slider => {
-        slider.addEventListener('input', () => {
-            (studioImageFilters as any)[slider.id.replace('-slider', '') as keyof typeof studioImageFilters] = parseFloat(slider.value);
+    [brightnessSlider, contrastSlider, saturateSlider, blurSlider].forEach(el => {
+        el.addEventListener('input', (e) => {
+            const target = e.target as HTMLInputElement;
+            const filterName = target.id.split('-')[0] as keyof typeof studioImageFilters;
+            (studioImageFilters as any)[filterName] = Number(target.value);
             applyStudioImageFilters();
         });
     });
-    textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
-    [fontFamilySelect, fontSizeSlider, fontColorPicker].forEach(el => el.addEventListener('input', handleTextStyleUpdate));
-    [fontBoldBtn, fontItalicBtn].forEach(btn => btn.addEventListener('click', () => {
-        const isPressed = btn.getAttribute('aria-pressed') === 'true';
-        btn.setAttribute('aria-pressed', String(!isPressed));
-        handleTextStyleUpdate();
-    }));
-    textPositionGrid.forEach(option => option.addEventListener('click', handleTextPositionUpdate));
-    micAiEditBtn.addEventListener('click', () => handleMicClick(aiEditPromptInput, micAiEditBtn));
-    aiEditPromptInput.addEventListener('input', () => enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim());
+    aiEditPromptInput.addEventListener('input', () => { enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim(); });
     enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
     applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
+    textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
+    [fontFamilySelect, fontSizeSlider, fontColorPicker].forEach(el => el.addEventListener('input', handleTextStyleUpdate));
+    fontBoldBtn.addEventListener('click', () => {
+        fontBoldBtn.setAttribute('aria-pressed', String(fontBoldBtn.getAttribute('aria-pressed') !== 'true'));
+        handleTextStyleUpdate();
+    });
+    fontItalicBtn.addEventListener('click', () => {
+        fontItalicBtn.setAttribute('aria-pressed', String(fontItalicBtn.getAttribute('aria-pressed') !== 'true'));
+        handleTextStyleUpdate();
+    });
+    textPositionGrid.forEach(pos => pos.addEventListener('click', handleTextPositionUpdate));
     imagePromptInput.addEventListener('input', () => {
         enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
         debouncedSaveStudioPrefs();
     });
-    micGenerateImageBtn.addEventListener('click', () => handleMicClick(imagePromptInput, micGenerateImageBtn));
     enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
     styleChips.forEach(chip => {
         chip.addEventListener('click', () => {
-            const style = chip.dataset.style;
+            const style = (chip as HTMLDivElement).dataset.style;
             if (!style) return;
-            chip.classList.toggle('selected');
-            const isSelected = chip.classList.contains('selected');
-            chip.setAttribute('aria-checked', String(isSelected));
-            if (isSelected) selectedImageStyles.add(style);
-            else selectedImageStyles.delete(style);
+            if (selectedImageStyles.has(style)) {
+                selectedImageStyles.delete(style);
+                chip.classList.remove('selected');
+            } else {
+                selectedImageStyles.add(style);
+                chip.classList.add('selected');
+            }
             debouncedSaveStudioPrefs();
         });
     });
@@ -3334,56 +2857,71 @@ async function initialize() {
     customHeightInput.addEventListener('change', handleCustomDimensionInput);
     aspectRatioLockToggle.addEventListener('change', handleAspectRatioLockToggle);
     generateImageBtn.addEventListener('click', handleGenerateImageClick);
-    undoBtn.addEventListener('click', handleUndoClick);
-    redoBtn.addEventListener('click', handleRedoClick);
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
     studioShareBtn.addEventListener('click', () => openShareModal('studio'));
-    
-    // -- Social Media Manager --
+
+    micDesignBtn.addEventListener('click', () => handleMicClick(promptInput, micDesignBtn));
+    micAiEditBtn.addEventListener('click', () => handleMicClick(aiEditPromptInput, micAiEditBtn));
+    micGenerateImageBtn.addEventListener('click', () => handleMicClick(imagePromptInput, micGenerateImageBtn));
+
     socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
     socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
     manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
     businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
-    businessForm.addEventListener('submit', handleBusinessFormSubmit);
     cancelBusinessEditBtn.addEventListener('click', handleCancelBusinessEdit);
+    businessForm.addEventListener('submit', handleBusinessFormSubmit);
     businessSelect.addEventListener('change', () => {
         selectedBusinessId = parseInt(businessSelect.value);
         debouncedSaveSocialPrefs();
     });
-    socialTopicInput.addEventListener('input', debouncedSaveSocialPrefs);
-    socialToneSelect.addEventListener('change', debouncedSaveSocialPrefs);
-    selectAllPlatformsBtn.addEventListener('click', handleSelectAllPlatforms);
-    generateSocialBtn.addEventListener('click', handleGenerateSocialBtn);
-    schedulePostsBtn.addEventListener('click', handleSchedulePosts);
-    suggestTimeBtn.addEventListener('click', handleSuggestTime);
-    brainstormIdeasBtn.addEventListener('click', openBrainstormModal);
-    generateBrainstormIdeasBtn.addEventListener('click', handleGenerateBrainstormIdeas);
-    closeBrainstormBtn.addEventListener('click', () => brainstormModal.classList.add('hidden'));
-    generateRepliesBtn.addEventListener('click', openReplyModal);
-    closeReplyModalBtn.addEventListener('click', () => replyGeneratorModal.classList.add('hidden'));
-    generateReplyBtn.addEventListener('click', handleGenerateReplies);
-    refineActionsContainer.querySelectorAll('.style-chip').forEach(chip => {
-        chip.addEventListener('click', (e) => {
-            refineActionsContainer.querySelectorAll('.style-chip').forEach(c => c.classList.remove('selected'));
-            (e.currentTarget as HTMLElement).classList.add('selected');
-        });
-    });
-    refineNowBtn.addEventListener('click', handleRefinePost);
-    cancelRefineBtn.addEventListener('click', () => refinePostModal.classList.add('hidden'));
+    [socialTopicInput, socialToneSelect].forEach(el => el.addEventListener('input', debouncedSaveSocialPrefs));
 
-
-    // --- FINAL UI SETUP ---
-    loadTheme();
-    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
-    if (lastTab) {
-        switchAppTab(lastTab);
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.lang = 'en-US';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+        recognition.onresult = (event: any) => {
+            const speechResult = event.results[0][0].transcript;
+            if (activeMic) {
+                activeMic.input.value = speechResult;
+                activeMic.input.dispatchEvent(new Event('input'));
+            }
+        };
+        recognition.onspeechend = () => {
+            recognition.stop();
+        };
+        recognition.onend = () => {
+            isListening = false;
+            if (activeMic) {
+                activeMic.button.classList.remove('listening');
+                activeMic.button.disabled = false;
+            }
+            activeMic = null;
+        };
+        recognition.onerror = (event: any) => {
+            console.error('Speech recognition error:', event.error);
+            showError(`Speech recognition error: ${event.error}`, socialErrorMessage);
+            if (isListening) {
+                recognition.stop();
+            }
+        };
     } else {
-        switchAppTab('design');
+        [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(b => b.classList.add('hidden'));
+        console.warn('Speech Recognition not supported in this browser.');
     }
 
-    await checkAuthStatus();
+    loadTheme();
+    const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
+    switchAppTab(lastTab || 'design');
+
+    currentUser = { id: 'user-123', name: 'Demo User', email: 'user@example.com', role: 'admin', isVerified: true };
+    await Promise.all([
+        loadUserPreferences(),
+        loadSocialData()
+    ]);
 }
 
-
-// Wait for the DOM to be fully loaded before initializing
 document.addEventListener('DOMContentLoaded', initialize);
