@@ -456,6 +456,22 @@ const loadingMessages = [
 ];
 
 /**
+ * Converts a data URL string into a Blob object. More robust than fetch(dataUrl).
+ */
+function dataURLtoBlob(dataUrl: string): Blob {
+    const parts = dataUrl.split(',');
+    const mimeType = parts[0].match(/:(.*?);/)?.[1] || 'application/octet-stream';
+    const b64 = atob(parts[1]);
+    let n = b64.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+        u8arr[n] = b64.charCodeAt(n);
+    }
+    return new Blob([u8arr], { type: mimeType });
+}
+
+
+/**
  * Creates a debounced function that delays invoking the provided function
  * until after `waitFor` milliseconds have elapsed since the last time
  * the debounced function was invoked. The debounced function also has a
@@ -1510,8 +1526,7 @@ async function handleDownloadClick(event: MouseEvent) {
             });
         }
 
-        const response = await fetch(finalDataUrl);
-        const blob = await response.blob();
+        const blob = dataURLtoBlob(finalDataUrl);
         const objectUrl = URL.createObjectURL(blob);
 
         const link = document.createElement('a');
@@ -1542,10 +1557,9 @@ async function handleDownloadClick(event: MouseEvent) {
 /**
  * Converts a data URL string into a File object.
  */
-async function dataURLtoFile(dataUrl: string, filename: string): Promise<File | null> {
+function dataURLtoFile(dataUrl: string, filename: string): File | null {
     try {
-        const res = await fetch(dataUrl);
-        const blob = await res.blob();
+        const blob = dataURLtoBlob(dataUrl);
         return new File([blob], filename, { type: blob.type });
     } catch (error) {
         console.error("Error converting data URL to file:", error);
@@ -1634,7 +1648,7 @@ async function handleShareNowClick() {
     
     const caption = shareCaptionInput.value;
     const format = currentImageToShare.includes('jpeg') ? 'jpg' : 'png';
-    const imageFile = await dataURLtoFile(currentImageToShare, `design-export.${format}`);
+    const imageFile = dataURLtoFile(currentImageToShare, `design-export.${format}`);
 
     if (!imageFile) {
         alert("Could not prepare image for sharing.");
@@ -2267,8 +2281,8 @@ async function handleExportImageClick(event: MouseEvent) {
         const image = new Image();
         image.crossOrigin = 'anonymous';
         
-        await new Promise((resolve, reject) => {
-            image.onload = resolve;
+        await new Promise<void>((resolve, reject) => {
+            image.onload = () => resolve();
             image.onerror = reject;
             image.src = studioCurrentImageSrc!;
         });
@@ -2285,7 +2299,7 @@ async function handleExportImageClick(event: MouseEvent) {
         ctx.filter = 'none'; 
         ctx.drawImage(studioTextCanvas, 0, 0);
         
-        let finalDataUrl = canvas.toDataURL(`image/${format}`, 0.9);
+        let finalDataUrl: string;
 
         if (format === 'jpg') {
              const jpgCanvas = document.createElement('canvas');
@@ -2296,14 +2310,21 @@ async function handleExportImageClick(event: MouseEvent) {
              jpgCtx.fillRect(0, 0, jpgCanvas.width, jpgCanvas.height);
              jpgCtx.drawImage(canvas, 0, 0);
              finalDataUrl = jpgCanvas.toDataURL('image/jpeg', 0.9);
+        } else {
+            finalDataUrl = canvas.toDataURL('image/png');
         }
         
+        const blob = dataURLtoBlob(finalDataUrl);
+        const objectUrl = URL.createObjectURL(blob);
+
         const link = document.createElement('a');
-        link.href = finalDataUrl;
+        link.href = objectUrl;
         link.download = fileName;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 100);
         showNotification('Image exported successfully!', 'success');
 
     } catch (error) {
