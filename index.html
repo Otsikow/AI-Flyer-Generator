@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -293,14 +294,15 @@
 
                         <div id="result-container" class="hidden">
                             <img id="flyer-output" alt="Generated design" loading="lazy" decoding="async">
-                            <div class="download-controls hidden">
-                                 <select id="format-select" class="format-select">
-                                    <option value="png">PNG</option>
-                                    <option value="jpg">JPG</option>
-                                </select>
-                                <button id="download-btn" class="btn">Download</button>
-                                <button id="share-btn" class="btn btn-secondary">Share</button>
-                            </div>
+                        </div>
+
+                        <div id="download-controls" class="download-controls">
+                             <select id="format-select" class="format-select">
+                                <option value="png">PNG</option>
+                                <option value="jpg">JPG</option>
+                            </select>
+                            <button id="download-btn" class="btn">Download</button>
+                            <button id="share-btn" class="btn btn-secondary">Share</button>
                         </div>
                         
                         <div id="error-message" class="error-message hidden" aria-live="polite"></div>
@@ -496,14 +498,14 @@
                                 <img id="studio-image-output" alt="Studio image output" loading="lazy" decoding="async">
                                 <canvas id="studio-text-canvas"></canvas>
                             </div>
-                             <div class="studio-download-controls hidden">
-                                <select id="studio-format-select" class="format-select">
-                                    <option value="png">PNG</option>
-                                    <option value="jpg">JPG</option>
-                                </select>
-                                <button id="studio-download-btn" class="btn">Export Image</button>
-                                <button id="studio-share-btn" class="btn btn-secondary">Share</button>
-                            </div>
+                        </div>
+                        <div class="studio-download-controls">
+                            <select id="studio-format-select" class="format-select">
+                                <option value="png">PNG</option>
+                                <option value="jpg">JPG</option>
+                            </select>
+                            <button id="studio-download-btn" class="btn">Download</button>
+                            <button id="studio-share-btn" class="btn btn-secondary">Share</button>
                         </div>
 
                         <div id="studio-error-message" class="error-message hidden" aria-live="polite"></div>

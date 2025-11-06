@@ -1,3 +1,5 @@
+
+
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 // Since cropperjs is loaded from a CDN, we declare its type here to satisfy TypeScript
@@ -633,7 +635,10 @@ function showResult(imageDataUrl: string) {
     hideLoading();
     if (flyerOutput) flyerOutput.src = imageDataUrl;
     if (resultContainer) resultContainer.classList.remove('hidden');
-    if (downloadControls) downloadControls.classList.remove('hidden');
+    // Enable controls now that there's a result
+    if (downloadBtn) downloadBtn.disabled = false;
+    if (shareBtn) shareBtn.disabled = false;
+    if (formatSelect) formatSelect.disabled = false;
 }
 
 function showError(message: string, targetErrorEl?: HTMLDivElement) {
@@ -1448,10 +1453,10 @@ ${textContentInstruction}
         parts.push({ text: fullPrompt.trim() });
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
+            model: 'gemini-2.5-flash-image',
             contents: { parts: parts },
             config: {
-                responseModalities: [Modality.IMAGE, Modality.TEXT],
+                responseModalities: [Modality.IMAGE],
             },
         });
         
@@ -1696,6 +1701,7 @@ function handleAuthTabSwitch(targetTab: 'login' | 'signup') {
         loginTabBtn.classList.remove('active');
         signupTabBtn.classList.add('active');
         loginTabContent.classList.add('hidden');
+        // FIX: Use classList.remove to remove a class, not remove() which removes the element.
         signupTabContent.classList.remove('hidden');
     }
 }
@@ -1847,8 +1853,12 @@ function setActiveStudioImage(src: string | null) {
         
         studioResultContainer.classList.remove('hidden');
         studioOutputPlaceholder.classList.add('hidden');
-        studioDownloadControls.classList.remove('hidden');
         
+        // Enable controls
+        if (studioDownloadBtn) studioDownloadBtn.disabled = false;
+        if (studioShareBtn) studioShareBtn.disabled = false;
+        if (studioFormatSelect) studioFormatSelect.disabled = false;
+
         studioEditControls.classList.remove('hidden');
         studioImageUploadContainer.classList.add('hidden');
 
@@ -1857,7 +1867,11 @@ function setActiveStudioImage(src: string | null) {
         studioCurrentImageSrc = null;
         studioResultContainer.classList.add('hidden');
         studioOutputPlaceholder.classList.remove('hidden');
-        studioDownloadControls.classList.add('hidden');
+        
+        // Disable controls
+        if (studioDownloadBtn) studioDownloadBtn.disabled = true;
+        if (studioShareBtn) studioShareBtn.disabled = true;
+        if (studioFormatSelect) studioFormatSelect.disabled = true;
 
         studioEditControls.classList.add('hidden');
         studioImageUploadContainer.classList.remove('hidden');
@@ -2030,7 +2044,7 @@ async function handleApplyAiEditClick() {
         const mimeType = studioCurrentImageSrc.substring(studioCurrentImageSrc.indexOf(':') + 1, studioCurrentImageSrc.indexOf(';'));
         
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-image-preview',
+            model: 'gemini-2.5-flash-image',
             contents: {
                 parts: [
                     { inlineData: { data: base64ImageData, mimeType: mimeType } },
@@ -2038,7 +2052,7 @@ async function handleApplyAiEditClick() {
                 ],
             },
             config: {
-                responseModalities: [Modality.IMAGE, Modality.TEXT],
+                responseModalities: [Modality.IMAGE],
             },
         });
 
@@ -2777,61 +2791,78 @@ async function initialize() {
     refineCustomInstruction = document.getElementById('refine-custom-instruction') as HTMLTextAreaElement;
     cancelRefineBtn = document.getElementById('cancel-refine-btn') as HTMLButtonElement;
     refineNowBtn = document.getElementById('refine-now-btn') as HTMLButtonElement;
+    manageUsersBtn = document.getElementById('manage-users-btn') as HTMLButtonElement;
+    userManagementModal = document.getElementById('user-management-modal') as HTMLDivElement;
+    closeUserManagementBtn = document.getElementById('close-user-management-btn') as HTMLButtonElement;
 
     debouncedSavePrefs = createDebouncedSaver(saveUserPreferences, 1200);
     debouncedSaveStudioPrefs = createDebouncedSaver(saveUserPreferences, 1200);
     debouncedSaveSocialPrefs = createDebouncedSaver(saveUserPreferences, 1200);
 
-    themeSwitcherBtn.addEventListener('click', toggleTheme);
+    themeSwitcherBtn.addEventListener('click', () => toggleTheme());
     tabDesignGenerator.addEventListener('click', () => switchAppTab('design'));
     tabImageStudio.addEventListener('click', () => switchAppTab('studio'));
     tabSocialManager.addEventListener('click', () => switchAppTab('social'));
 
-    loginBtn?.addEventListener('click', openLoginModal);
+    loginBtn?.addEventListener('click', () => openLoginModal());
     loginModal?.addEventListener('click', (e) => { if (e.target === loginModal) closeLoginModal(); });
     loginTabBtn?.addEventListener('click', () => handleAuthTabSwitch('login'));
     signupTabBtn?.addEventListener('click', () => handleAuthTabSwitch('signup'));
+
+    // User Management Modal Listeners
+    manageUsersBtn.addEventListener('click', () => {
+        // In a real app, you would fetch and render users here.
+        userManagementModal.classList.remove('hidden');
+    });
+    closeUserManagementBtn.addEventListener('click', () => {
+        userManagementModal.classList.add('hidden');
+    });
+    userManagementModal.addEventListener('click', (e) => {
+        if (e.target === userManagementModal) {
+            userManagementModal.classList.add('hidden');
+        }
+    });
 
     promptInput.addEventListener('input', () => { 
         enhancePromptBtn.disabled = !promptInput.value.trim();
         debouncedSavePrefs(); 
     });
-    [companyNameInput, contactDetailsInput].forEach(el => el.addEventListener('input', debouncedSavePrefs));
-    enhancePromptBtn.addEventListener('click', handleEnhancePromptClick);
+    [companyNameInput, contactDetailsInput].forEach(el => el.addEventListener('input', () => debouncedSavePrefs()));
+    enhancePromptBtn.addEventListener('click', () => handleEnhancePromptClick());
     imageUploadArea.addEventListener('click', () => logoUpload.click());
     logoUpload.addEventListener('change', () => handleLogoSelection(logoUpload.files));
-    removeLogoBtn.addEventListener('click', handleRemoveLogo);
-    applyCropBtn.addEventListener('click', handleApplyCrop);
-    cancelCropBtn.addEventListener('click', handleCancelCrop);
+    removeLogoBtn.addEventListener('click', () => handleRemoveLogo());
+    applyCropBtn.addEventListener('click', () => handleApplyCrop());
+    cancelCropBtn.addEventListener('click', () => handleCancelCrop());
     logoSizeOptions.forEach(o => o.addEventListener('click', handleLogoSizeSelection));
     logoPositionOptions.forEach(o => o.addEventListener('click', handleLogoPositionSelection));
-    logoRotationSlider.addEventListener('input', handleLogoRotationChange);
-    logoOpacitySlider.addEventListener('input', handleLogoOpacityChange);
-    resetRotationBtn.addEventListener('click', handleResetRotation);
-    resetOpacityBtn.addEventListener('click', handleResetOpacity);
+    logoRotationSlider.addEventListener('input', () => handleLogoRotationChange());
+    logoOpacitySlider.addEventListener('input', () => handleLogoOpacityChange());
+    resetRotationBtn.addEventListener('click', () => handleResetRotation());
+    resetOpacityBtn.addEventListener('click', () => handleResetOpacity());
     paletteOptions.forEach(o => o.addEventListener('click', handlePaletteSelection));
     layoutOptions.forEach(o => o.addEventListener('click', handleLayoutSelection));
     backgroundOptions.forEach(o => o.addEventListener('click', handleBackgroundSelection));
     fontOptions.forEach(o => o.addEventListener('click', handleFontSelection));
     sizeOptions.forEach(o => o.addEventListener('click', handleSizeSelection));
     textEffectOptions.forEach(o => o.addEventListener('click', handleTextEffectSelection));
-    generateBtn.addEventListener('click', handleGenerateClick);
+    generateBtn.addEventListener('click', () => handleGenerateClick());
     downloadBtn.addEventListener('click', handleDownloadClick);
     shareBtn.addEventListener('click', () => openShareModal('design'));
-    clearPrefsBtn.addEventListener('click', handleClearPrefs);
+    clearPrefsBtn.addEventListener('click', () => handleClearPrefs());
 
     shareModal.addEventListener('click', (e) => { if (e.target === shareModal) closeShareModal(); });
-    generateCaptionBtn.addEventListener('click', handleGenerateCaptionClick);
-    shareNowBtn.addEventListener('click', handleShareNowClick);
-    cancelShareBtn.addEventListener('click', closeShareModal);
+    generateCaptionBtn.addEventListener('click', () => handleGenerateCaptionClick());
+    shareNowBtn.addEventListener('click', () => handleShareNowClick());
+    cancelShareBtn.addEventListener('click', () => closeShareModal());
 
     studioTabGenerate.addEventListener('click', () => handleStudioTabSwitch('generate'));
     studioTabEdit.addEventListener('click', () => handleStudioTabSwitch('edit'));
     studioImageUploadArea.addEventListener('click', () => studioLogoUpload.click());
     studioLogoUpload.addEventListener('change', () => handleStudioImageUpload(studioLogoUpload.files));
-    undoBtn.addEventListener('click', handleUndoClick);
-    redoBtn.addEventListener('click', handleRedoClick);
-    resetFiltersBtn.addEventListener('click', resetAllImageFilters);
+    undoBtn.addEventListener('click', () => handleUndoClick());
+    redoBtn.addEventListener('click', () => handleRedoClick());
+    resetFiltersBtn.addEventListener('click', () => resetAllImageFilters());
     [brightnessSlider, contrastSlider, saturateSlider, blurSlider].forEach(el => {
         el.addEventListener('input', (e) => {
             const target = e.target as HTMLInputElement;
@@ -2841,10 +2872,10 @@ async function initialize() {
         });
     });
     aiEditPromptInput.addEventListener('input', () => { enhanceAiEditBtn.disabled = !aiEditPromptInput.value.trim(); });
-    enhanceAiEditBtn.addEventListener('click', handleEnhanceAiEditPromptClick);
-    applyAiEditBtn.addEventListener('click', handleApplyAiEditClick);
-    textOverlayInput.addEventListener('input', handleTextOverlayUpdate);
-    [fontFamilySelect, fontSizeSlider, fontColorPicker].forEach(el => el.addEventListener('input', handleTextStyleUpdate));
+    enhanceAiEditBtn.addEventListener('click', () => handleEnhanceAiEditPromptClick());
+    applyAiEditBtn.addEventListener('click', () => handleApplyAiEditClick());
+    textOverlayInput.addEventListener('input', () => handleTextOverlayUpdate());
+    [fontFamilySelect, fontSizeSlider, fontColorPicker].forEach(el => el.addEventListener('input', () => handleTextStyleUpdate()));
     fontBoldBtn.addEventListener('click', () => {
         fontBoldBtn.setAttribute('aria-pressed', String(fontBoldBtn.getAttribute('aria-pressed') !== 'true'));
         handleTextStyleUpdate();
@@ -2858,7 +2889,7 @@ async function initialize() {
         enhanceImagePromptBtn.disabled = !imagePromptInput.value.trim();
         debouncedSaveStudioPrefs();
     });
-    enhanceImagePromptBtn.addEventListener('click', handleEnhanceImagePromptClick);
+    enhanceImagePromptBtn.addEventListener('click', () => handleEnhanceImagePromptClick());
     styleChips.forEach(chip => {
         chip.addEventListener('click', () => {
             const style = (chip as HTMLDivElement).dataset.style;
@@ -2876,8 +2907,8 @@ async function initialize() {
     sizePresetChips.forEach(chip => chip.addEventListener('click', handleSizePresetClick));
     customWidthInput.addEventListener('change', handleCustomDimensionInput);
     customHeightInput.addEventListener('change', handleCustomDimensionInput);
-    aspectRatioLockToggle.addEventListener('change', handleAspectRatioLockToggle);
-    generateImageBtn.addEventListener('click', handleGenerateImageClick);
+    aspectRatioLockToggle.addEventListener('change', () => handleAspectRatioLockToggle());
+    generateImageBtn.addEventListener('click', () => handleGenerateImageClick());
     studioDownloadBtn.addEventListener('click', handleExportImageClick);
     studioShareBtn.addEventListener('click', () => openShareModal('studio'));
 
@@ -2887,15 +2918,15 @@ async function initialize() {
 
     socialTabCreate.addEventListener('click', () => handleSocialTabSwitch('create'));
     socialTabScheduled.addEventListener('click', () => handleSocialTabSwitch('scheduled'));
-    manageBusinessesBtn.addEventListener('click', openBusinessManagerModal);
+    manageBusinessesBtn.addEventListener('click', () => openBusinessManagerModal());
     businessManagerModal.addEventListener('click', (e) => { if (e.target === businessManagerModal) closeBusinessManagerModal(); });
-    cancelBusinessEditBtn.addEventListener('click', handleCancelBusinessEdit);
+    cancelBusinessEditBtn.addEventListener('click', () => handleCancelBusinessEdit());
     businessForm.addEventListener('submit', handleBusinessFormSubmit);
     businessSelect.addEventListener('change', () => {
         selectedBusinessId = parseInt(businessSelect.value);
         debouncedSaveSocialPrefs();
     });
-    [socialTopicInput, socialToneSelect].forEach(el => el.addEventListener('input', debouncedSaveSocialPrefs));
+    [socialTopicInput, socialToneSelect].forEach(el => el.addEventListener('input', () => debouncedSaveSocialPrefs()));
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -2933,6 +2964,14 @@ async function initialize() {
         [micDesignBtn, micAiEditBtn, micGenerateImageBtn].forEach(b => b.classList.add('hidden'));
         console.warn('Speech Recognition not supported in this browser.');
     }
+
+    // Initially disable download controls until an image is ready
+    downloadBtn.disabled = true;
+    shareBtn.disabled = true;
+    formatSelect.disabled = true;
+    studioDownloadBtn.disabled = true;
+    studioShareBtn.disabled = true;
+    studioFormatSelect.disabled = true;
 
     loadTheme();
     const lastTab = localStorage.getItem(LAST_TAB_KEY) as 'design' | 'studio' | 'social' | null;
