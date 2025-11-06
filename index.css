@@ -351,7 +351,18 @@ textarea:focus, input:is([type="text"], [type="url"], [type="email"], [type="pas
   box-shadow: none;
 }
 .btn.loading svg, .btn-icon.loading svg { animation: spin 1.5s linear infinite; }
-#generate-btn, #generate-image-btn { width: 100%; }
+
+.generation-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-xl);
+}
+.generation-actions #generate-btn {
+    flex-grow: 1;
+}
+#generate-image-btn { 
+    width: 100%; 
+}
 
 .btn-icon {
     width: 32px;
@@ -431,7 +442,7 @@ textarea:focus, input:is([type="text"], [type="url"], [type="email"], [type="pas
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
     overflow-y: auto;
 }
-#share-modal .modal-content, #business-manager-modal .modal-content, #user-management-modal .modal-content {
+#share-modal .modal-content, #business-manager-modal .modal-content, #user-management-modal .modal-content, #crop-modal .modal-content {
     max-width: 700px;
 }
 .modal-content h2 { margin-bottom: var(--spacing-xl); text-align: center; }
@@ -477,7 +488,8 @@ textarea:focus, input:is([type="text"], [type="url"], [type="email"], [type="pas
   display: none !important;
 }
 
-#image-upload-area, #studio-image-upload-area {
+#image-upload-area {
+  position: relative;
   border: 2px dashed var(--border-color);
   border-radius: var(--border-radius-md);
   padding: var(--spacing-lg);
@@ -489,12 +501,126 @@ textarea:focus, input:is([type="text"], [type="url"], [type="email"], [type="pas
   align-items: center;
   justify-content: center;
   transition: border-color 0.2s, background-color 0.2s;
+  overflow: hidden;
 }
 
 #image-upload-area:hover, #image-upload-area.drag-over,
 #studio-image-upload-area:hover, #studio-image-upload-area.drag-over {
   border-color: var(--primary-color);
   background-color: var(--selected-bg-color);
+}
+
+#upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--text-secondary-color);
+}
+
+#upload-placeholder svg {
+    color: var(--text-secondary-color);
+}
+
+#logo-preview {
+    max-width: 100%;
+    max-height: 120px;
+    object-fit: contain;
+}
+
+#remove-logo-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: none;
+    background-color: rgba(0,0,0,0.5);
+    color: white;
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.customization-subheader {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary-color);
+    margin-bottom: var(--spacing-md);
+    margin-top: var(--spacing-xl);
+}
+
+.logo-position-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.logo-position-option {
+    aspect-ratio: 1 / 1;
+    border: 2px solid var(--border-color);
+    border-radius: var(--border-radius-sm);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xs);
+    transition: all 0.2s ease;
+}
+.logo-position-option .position-indicator {
+    width: 12px;
+    height: 12px;
+    background-color: var(--border-color);
+    border-radius: 50%;
+    transition: all 0.2s ease;
+}
+.logo-position-option:hover {
+    border-color: var(--primary-hover-color);
+}
+.logo-position-option.selected {
+    border-color: var(--primary-color);
+}
+.logo-position-option.selected .position-indicator {
+    background-color: var(--primary-color);
+}
+.logo-position-option[data-position*="top"] { align-items: flex-start; }
+.logo-position-option[data-position*="bottom"] { align-items: flex-end; }
+.logo-position-option[data-position*="left"] { justify-content: flex-start; }
+.logo-position-option[data-position*="right"] { justify-content: flex-end; }
+
+.slider-group {
+    margin-bottom: var(--spacing-lg);
+}
+.slider-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    color: var(--text-color);
+    margin-bottom: var(--spacing-sm);
+}
+.slider-with-btn {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+.slider-with-btn input[type="range"] {
+    flex-grow: 1;
+}
+
+#crop-container {
+    height: 40vh;
+    margin-bottom: var(--spacing-lg);
+}
+#image-to-crop {
+    display: block;
+    max-width: 100%;
 }
 
 .download-controls, .studio-download-controls {

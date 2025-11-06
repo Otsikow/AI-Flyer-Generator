@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -97,14 +96,14 @@
 
                         <div id="logo-customization" class="hidden">
                             <h3 class="customization-subheader">Logo Size</h3>
-                            <div class="logo-size-options-container" role="radiogroup">
+                            <div class="options-grid" role="radiogroup">
                                 <div class="logo-size-option" data-size="small" role="radio" aria-checked="false" tabindex="0"><span>Small</span></div>
                                 <div class="logo-size-option selected" data-size="medium" role="radio" aria-checked="true" tabindex="0"><span>Medium</span></div>
                                 <div class="logo-size-option" data-size="large" role="radio" aria-checked="false" tabindex="0"><span>Large</span></div>
                             </div>
                             
                             <h3 class="customization-subheader">Logo Position</h3>
-                            <div class="logo-position-options-container" role="radiogroup">
+                            <div class="logo-position-grid" role="radiogroup">
                                 <div class="logo-position-option" data-position="top-left" role="radio" aria-checked="false" tabindex="0" aria-label="Top Left"><div class="position-indicator"></div></div>
                                 <div class="logo-position-option" data-position="top-center" role="radio" aria-checked="false" tabindex="0" aria-label="Top Center"><div class="position-indicator"></div></div>
                                 <div class="logo-position-option selected" data-position="top-right" role="radio" aria-checked="true" tabindex="0" aria-label="Top Right"><div class="position-indicator"></div></div>
@@ -116,25 +115,25 @@
                                 <div class="logo-position-option" data-position="bottom-right" role="radio" aria-checked="false" tabindex="0" aria-label="Bottom Right"><div class="position-indicator"></div></div>
                             </div>
 
-                            <h3 class="customization-subheader customization-subheader--spaced">Logo Adjustments</h3>
-                            <div class="customization-slider-group">
-                                <div class="slider-label-group">
+                            <h3 class="customization-subheader">Logo Adjustments</h3>
+                            <div class="slider-group">
+                                <div class="slider-label">
                                     <label for="logo-rotation-slider">Rotation</label>
                                     <span id="logo-rotation-value">0°</span>
                                 </div>
-                                <div class="slider-input-group">
+                                <div class="slider-with-btn">
                                     <input type="range" id="logo-rotation-slider" min="-180" max="180" value="0">
                                     <button id="reset-rotation-btn" class="btn-icon" aria-label="Reset Rotation" title="Reset Rotation">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
                                     </button>
                                 </div>
                             </div>
-                            <div class="customization-slider-group">
-                                <div class="slider-label-group">
+                            <div class="slider-group">
+                                <div class="slider-label">
                                     <label for="logo-opacity-slider">Opacity</label>
                                     <span id="logo-opacity-value">100%</span>
                                 </div>
-                                <div class="slider-input-group">
+                                <div class="slider-with-btn">
                                     <input type="range" id="logo-opacity-slider" min="0" max="100" value="100">
                                     <button id="reset-opacity-btn" class="btn-icon" aria-label="Reset Opacity" title="Reset Opacity">
                                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
@@ -145,7 +144,7 @@
                         
                         <h2>5. Color & Background</h2>
                          <h3 class="customization-subheader">Palettes</h3>
-                        <div class="palette-options-container" role="radiogroup" aria-labelledby="palette-heading">
+                        <div class="options-grid" role="radiogroup" aria-labelledby="palette-heading">
                             <div class="palette-option selected" data-palette-name="default" role="radio" aria-checked="true" tabindex="0">
                                 <span>Default</span>
                             </div>
@@ -201,7 +200,7 @@
                             </div>
                         </div>
 
-                        <h3 class="customization-subheader customization-subheader--spaced">Solid Background</h3>
+                        <h3 class="customization-subheader">Solid Background</h3>
                         <div class="options-grid" role="radiogroup">
                             <div class="background-option selected" data-bg-type="none" data-bg-value="none" role="radio" aria-checked="true" tabindex="0">
                                 <span>None</span>
@@ -225,7 +224,7 @@
                         
                         <h2>6. Layout & Style</h2>
                         <!-- Layout Options -->
-                        <div class="layout-options-container" role="radiogroup" aria-labelledby="layout-heading">
+                        <div class="options-grid" role="radiogroup" aria-labelledby="layout-heading">
                             <div class="layout-option" data-layout="text-focus" role="radio" aria-checked="false" tabindex="0">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="7" y1="8" x2="17" y2="8"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="7" y1="16" x2="12" y2="16"/></svg>
                                 <span>Text Focus</span>
@@ -241,7 +240,7 @@
                         </div>
 
                         <!-- Font Options -->
-                        <div class="font-options-container" role="radiogroup" aria-labelledby="font-heading">
+                        <div class="options-grid" role="radiogroup" aria-labelledby="font-heading">
                             <div class="font-option selected" data-font="sans-serif" role="radio" aria-checked="true" tabindex="0"><span style="font-family: sans-serif;">Sans-serif</span></div>
                             <div class="font-option" data-font="serif" role="radio" aria-checked="false" tabindex="0"><span style="font-family: serif;">Serif</span></div>
                             <div class="font-option" data-font="script" role="radio" aria-checked="false" tabindex="0"><span style="font-family: cursive;">Script</span></div>
@@ -251,7 +250,7 @@
                         </div>
                         
                         <!-- Size Options -->
-                        <div class="size-options-container" role="radiogroup" aria-labelledby="size-heading">
+                        <div class="options-grid" role="radiogroup" aria-labelledby="size-heading">
                             <div class="size-option selected" data-size="a4-portrait" role="radio" aria-checked="true" tabindex="0"><span>A4 Portrait</span></div>
                             <div class="size-option" data-size="a4-landscape" role="radio"aria-checked="false" tabindex="0"><span>A4 Landscape</span></div>
                             <div class="size-option" data-size="us-letter" role="radio" aria-checked="false" tabindex="0"><span>US Letter</span></div>
@@ -262,7 +261,7 @@
                         </div>
 
                         <h2>7. Text Effects</h2>
-                        <div class="text-effects-container">
+                        <div class="options-grid">
                             <div class="text-effect-option" data-effect="bold" role="checkbox" aria-checked="false" tabindex="0">
                                 <span style="font-weight: bold;">Bold</span>
                             </div>
@@ -274,10 +273,16 @@
                             </div>
                         </div>
 
-                        <button id="generate-btn" class="btn">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.se's prompt 2.5 0 0 0 3.5 0L21 12z"/></svg>
-                            <span>Generate Design</span>
-                        </button>
+                        <div class="generation-actions">
+                            <button id="generate-btn" class="btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 3-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 10l1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 3z"/><path d="m3 12 1.9 1.9a2.5 2.5 0 0 0 3.5 0L10 12l-1.9-1.9a2.5 2.5 0 0 0-3.5 0L3 12z"/><path d="m12 21 1.9-1.9a2.5 2.5 0 0 0 0-3.5L12 14l-1.9 1.9a2.5 2.5 0 0 0 0 3.5L12 21z"/><path d="M21 12 19.1 10.1a2.5 2.5 0 0 0-3.5 0L14 12l1.9 1.9a2.se's prompt 2.5 0 0 0 3.5 0L21 12z"/></svg>
+                                <span>Generate Design</span>
+                            </button>
+                            <button id="generate-logo-btn" class="btn btn-secondary">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+                                <span>Generate Logo</span>
+                            </button>
+                        </div>
                     </section>
 
                     <section class="output-panel">
@@ -333,7 +338,7 @@
                             </div>
 
                             <h2 class="panel-section-header">Style</h2>
-                            <div class="style-chips-container">
+                            <div class="options-grid">
                                 <div class="style-chip" data-style="Photo" role="checkbox" aria-checked="false" tabindex="0">Photo</div>
                                 <div class="style-chip" data-style="3D Render" role="checkbox" aria-checked="false" tabindex="0">3D Render</div>
                                 <div class="style-chip" data-style="Watercolor" role="checkbox" aria-checked="false" tabindex="0">Watercolor</div>
@@ -343,7 +348,7 @@
                             </div>
                             
                             <h2 class="panel-section-header">Image Size</h2>
-                            <div class="style-chips-container">
+                            <div class="options-grid">
                                 <button class="style-chip size-preset-chip selected" data-width="1024" data-height="1024">Square (1:1)</button>
                                 <button class="style-chip size-preset-chip" data-width="1344" data-height="768">Banner (16:9)</button>
                                 <button class="style-chip size-preset-chip" data-width="1024" data-height="1280">Poster (4:5)</button>
@@ -454,8 +459,8 @@
                                             <button id="font-bold-btn" class="style-toggle" aria-pressed="false" title="Bold">B</button>
                                             <button id="font-italic-btn" class="style-toggle" aria-pressed="false" title="Italic">I</button>
                                         </div>
-                                        <h3 class="customization-subheader customization-subheader--spaced">Position</h3>
-                                        <div id="text-position-grid" class="logo-position-options-container" role="radiogroup">
+                                        <h3 class="customization-subheader">Position</h3>
+                                        <div id="text-position-grid" class="logo-position-grid" role="radiogroup">
                                             <div class="logo-position-option" data-position="top-left" role="radio" aria-checked="false" tabindex="0" aria-label="Top Left"><div class="position-indicator"></div></div>
                                             <div class="logo-position-option" data-position="top-center" role="radio" aria-checked="false" tabindex="0" aria-label="Top Center"><div class="position-indicator"></div></div>
                                             <div class="logo-position-option" data-position="top-right" role="radio" aria-checked="false" tabindex="0" aria-label="Top Right"><div class="position-indicator"></div></div>
@@ -544,7 +549,7 @@
                         </select>
             
                         <h2>3. Platforms</h2>
-                        <div id="social-platforms-container" class="style-chips-container">
+                        <div id="social-platforms-container" class="options-grid">
                             <!-- Platform buttons will be inserted here by JS -->
                         </div>
                         <button id="select-all-platforms-btn" class="btn btn-secondary">Select/Deselect All</button>
@@ -756,7 +761,7 @@
                 </div>
                 <div class="refine-actions">
                     <label>Refinement Instruction</label>
-                    <div id="refine-actions-container" class="style-chips-container">
+                    <div id="refine-actions-container" class="options-grid">
                         <button class="style-chip" data-instruction="Make it shorter">Make Shorter</button>
                         <button class="style-chip" data-instruction="Add relevant emojis">Add Emojis</button>
                         <button class="style-chip" data-instruction="Change the call to action">Change CTA</button>

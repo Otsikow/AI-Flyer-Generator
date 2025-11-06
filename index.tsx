@@ -1,5 +1,4 @@
 
-
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 
 // Since cropperjs is loaded from a CDN, we declare its type here to satisfy TypeScript
@@ -86,6 +85,7 @@ let fontOptions: NodeListOf<HTMLDivElement>;
 let sizeOptions: NodeListOf<HTMLDivElement>;
 let textEffectOptions: NodeListOf<HTMLDivElement>;
 let generateBtn: HTMLButtonElement;
+let generateLogoBtn: HTMLButtonElement;
 let generateBtnSpan: HTMLSpanElement | null;
 let clearPrefsBtn: HTMLButtonElement;
 let outputPlaceholder: HTMLDivElement;
@@ -591,13 +591,24 @@ function updateDynamicText(size: string) {
 function setGenerating(generating: boolean) {
     isGenerating = generating;
     generateBtn.disabled = generating;
+    if (generateLogoBtn) generateLogoBtn.disabled = generating;
+
+    const logoBtnSpan = generateLogoBtn?.querySelector('span');
+
     if (generating) {
         generateBtn.classList.add('loading');
         if (generateBtnSpan) generateBtnSpan.textContent = 'Generating...';
+        
+        generateLogoBtn?.classList.add('loading');
+        if (logoBtnSpan) logoBtnSpan.textContent = 'Generating...';
+
     } else {
         generateBtn.classList.remove('loading');
         // Restore the correct, context-aware text
         updateDynamicText(selectedSize);
+        
+        generateLogoBtn?.classList.remove('loading');
+        if (logoBtnSpan) logoBtnSpan.textContent = 'Generate Logo';
     }
 }
 
@@ -1298,6 +1309,22 @@ function parseAndShowError(error: unknown, targetErrorEl?: HTMLDivElement) {
     showError(userMessage, targetErrorEl);
 }
 
+async function handleGenerateLogoClick() {
+    // Set the internal state to 'logo' to guide the prompt generation
+    selectedSize = 'logo';
+
+    // Update the UI to reflect this choice, which also helps the user understand what's happening
+    sizeOptions.forEach(option => {
+        const isSelected = option.getAttribute('data-size') === 'logo';
+        option.classList.toggle('selected', isSelected);
+        option.setAttribute('aria-checked', String(isSelected));
+    });
+    updateDynamicText('logo');
+
+    // Trigger the main generation logic
+    await handleGenerateClick();
+}
+
 async function handleGenerateClick() {
     if (isGenerating) return;
     if (!currentUser) {
@@ -1683,7 +1710,6 @@ async function handleShareNowClick() {
     }
 }
 
-// --- FIX START ---
 // --- AUTH MODAL FUNCTIONS ---
 
 /**
@@ -1701,7 +1727,6 @@ function handleAuthTabSwitch(targetTab: 'login' | 'signup') {
         loginTabBtn.classList.remove('active');
         signupTabBtn.classList.add('active');
         loginTabContent.classList.add('hidden');
-        // FIX: Use classList.remove to remove a class, not remove() which removes the element.
         signupTabContent.classList.remove('hidden');
     }
 }
@@ -1733,7 +1758,6 @@ function closeLoginModal() {
         loginModal.classList.add('hidden');
     }
 }
-// --- FIX END ---
 
 
 // --- EVENT HANDLERS (Image Studio) ---
@@ -2669,6 +2693,7 @@ async function initialize() {
     sizeOptions = document.querySelectorAll('.size-option');
     textEffectOptions = document.querySelectorAll('.text-effect-option');
     generateBtn = document.getElementById('generate-btn') as HTMLButtonElement;
+    generateLogoBtn = document.getElementById('generate-logo-btn') as HTMLButtonElement;
     generateBtnSpan = generateBtn.querySelector('span');
     clearPrefsBtn = document.getElementById('clear-prefs-btn') as HTMLButtonElement;
     outputPlaceholder = document.getElementById('output-placeholder') as HTMLDivElement;
@@ -2847,6 +2872,7 @@ async function initialize() {
     sizeOptions.forEach(o => o.addEventListener('click', handleSizeSelection));
     textEffectOptions.forEach(o => o.addEventListener('click', handleTextEffectSelection));
     generateBtn.addEventListener('click', () => handleGenerateClick());
+    generateLogoBtn.addEventListener('click', () => handleGenerateLogoClick());
     downloadBtn.addEventListener('click', handleDownloadClick);
     shareBtn.addEventListener('click', () => openShareModal('design'));
     clearPrefsBtn.addEventListener('click', () => handleClearPrefs());
